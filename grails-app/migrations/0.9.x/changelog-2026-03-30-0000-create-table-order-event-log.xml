@@ -24,9 +24,19 @@
 
     <changeSet author="ewaterman" id="300320260000-1">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_order_event_log_order"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'order_event_log'
+                  AND CONSTRAINT_NAME = 'fk_order_event_log_order'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="order_id"
@@ -41,9 +51,19 @@
 
     <changeSet author="ewaterman" id="300320260000-2">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_order_event_log_event_log"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'order_event_log'
+                  AND CONSTRAINT_NAME = 'fk_order_event_log_event_log'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="event_log_id"
