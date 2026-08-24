@@ -52,9 +52,19 @@
 
     <changeSet author="ewaterman" id="100220260000-1">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_event_log_event"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'event_log'
+                  AND CONSTRAINT_NAME = 'fk_event_log_event'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="event_id"
@@ -69,9 +79,19 @@
 
     <changeSet author="ewaterman" id="100220260000-2">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_event_log_location"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'event_log'
+                  AND CONSTRAINT_NAME = 'fk_event_log_location'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="location_id"
@@ -86,9 +106,19 @@
 
     <changeSet author="ewaterman" id="100220260000-3">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_event_log_created_by"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'event_log'
+                  AND CONSTRAINT_NAME = 'fk_event_log_created_by'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="created_by_id"
@@ -103,9 +133,19 @@
 
     <changeSet author="ewaterman" id="100220260000-4">
         <preConditions onFail="MARK_RAN">
-            <not>
-                <foreignKeyConstraintExists foreignKeyName="fk_event_log_updated_by"/>
-            </not>
+            <!-- A name-only foreignKeyConstraintExists makes Liquibase snapshot every
+                 foreign key in the schema when the constraint is absent (the normal
+                 case), which with Connector/J means one SHOW CREATE TABLE per table.
+                 Measured at 29s-419s per changeset on populated databases. The scoped
+                 sqlCheck answers the same question with one indexed query. -->
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'event_log'
+                  AND CONSTRAINT_NAME = 'fk_event_log_updated_by'
+                  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+            </sqlCheck>
         </preConditions>
         <addForeignKeyConstraint
                 baseColumnNames="updated_by_id"
