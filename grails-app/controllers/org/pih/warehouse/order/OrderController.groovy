@@ -940,7 +940,7 @@ class OrderController {
             flash.message = "${warehouse.message(code: 'default.not.found.message', args: [warehouse.message(code: 'order.label', default: 'Order'), params.id])}"
             redirect(action: "list")
         } else {
-            Document documentTemplate = Document.findByName("${controllerName}:${actionName}")
+            Document documentTemplate = documentTemplateService.findGroovyServerPageTemplate("${controllerName}:${actionName}")
             if (documentTemplate) {
                 render documentTemplateService.renderGroovyServerPageDocumentTemplate(documentTemplate, [orderInstance:orderInstance])
                 return
