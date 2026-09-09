@@ -3,7 +3,6 @@ package org.pih.warehouse.data
 import groovy.sql.Sql
 import org.springframework.jdbc.datasource.DelegatingDataSource
 import org.springframework.jdbc.datasource.SingleConnectionDataSource
-import spock.lang.Shared
 import spock.lang.Unroll
 import spock.util.concurrent.PollingConditions
 
@@ -32,7 +31,6 @@ class DataServiceSessionStateIntegrationSpec extends IntegrationSpec {
 
     DataSource dataSource
 
-    @Shared
     static final String FK_CHECKS = "SELECT @@SESSION.foreign_key_checks AS fkChecks"
 
     /**
@@ -118,9 +116,14 @@ class DataServiceSessionStateIntegrationSpec extends IntegrationSpec {
         Connection next = pooledDataSource.connection
         new Sql(next).firstRow("SELECT CONNECTION_ID() AS id").id != victimConnectionId
 
-        cleanup:
+        cleanup: 'if an assertion above failed, the batch may never have discarded the victim and' +
+                ' it is still checked out - return it rather than leaking a borrowed connection' +
+                ' into the rest of the suite. With suppressClose=false destroy() closes the victim' +
+                ' itself, and both calls are no-ops once the batch has discarded and closed it'
         dataService.dataSource = original
         next?.close()
+        pinned?.destroy()
+        victim?.close()
     }
 
     void 'executeStatements leaves foreign_key_checks alone when the batch never touched it'() {
@@ -172,6 +175,10 @@ class DataServiceSessionStateIntegrationSpec extends IntegrationSpec {
         dataService.executeStatements(["DELETE FROM tag WHERE id = '${tagId}'".toString()])
     }
 
+    // CHARACTERIZATION TEST - this passes before the fix as well as after it. DataService's own
+    // @Transactional already binds every borrow to one connection through Grails'
+    // TransactionAwareDataSourceProxy, so the guarantee predates this change; the case exists to
+    // state it explicitly and to fail if someone later removes the annotation.
     void 'executeStatements runs the whole batch on one connection'() {
         given: 'a temporary table, which lives and dies with a single connection'
         Sql sql = new Sql(dataSource)

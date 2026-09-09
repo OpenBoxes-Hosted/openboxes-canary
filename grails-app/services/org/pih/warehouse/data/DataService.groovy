@@ -12,9 +12,9 @@ package org.pih.warehouse.data
 import grails.gorm.transactions.Transactional
 import groovy.sql.Sql
 import org.apache.commons.lang.StringEscapeUtils
-import org.apache.tomcat.jdbc.pool.PooledConnection
 import org.apache.poi.hssf.usermodel.*
 import org.apache.poi.ss.usermodel.*
+import org.apache.tomcat.jdbc.pool.PooledConnection
 import grails.plugins.csv.CSVWriter
 import org.grails.plugins.excelimport.ExpectedPropertyType
 import org.pih.warehouse.core.Location
@@ -86,6 +86,7 @@ class DataService {
         try {
             Sql sql = new Sql(connection)
             Integer foreignKeyChecksOnEntry = readForeignKeyChecks(sql)
+            Throwable inFlight = null
             try {
                 if (TransactionSynchronizationManager.isActualTransactionActive()) {
                     runStatements(sql, statements, logStatement)
@@ -94,14 +95,24 @@ class DataService {
                         runStatements(sql, statements, logStatement)
                     }
                 }
+            } catch (Throwable t) {
+                // Remembered only so that a restore failure below cannot erase it, since the
+                // restore's own exception is the one that would propagate from the finally.
+                inFlight = t
+                throw t
             } finally {
                 try {
                     restoreForeignKeyChecks(sql, foreignKeyChecksOnEntry)
                 } catch (Exception e) {
+                    if (inFlight != null) {
+                        e.addSuppressed(inFlight)
+                    }
                     // The session is dirty and we could not clean it, so we no longer know what
                     // state the next borrower would inherit. Take the connection out of service.
-                    discarded = true
+                    // The flag is set only once that has actually happened, so that anything
+                    // unexpected still leaves the connection to the ordinary close below.
                     discardConnection(connection)
+                    discarded = true
                     throw e
                 }
             }
@@ -179,10 +190,13 @@ class DataService {
             // and let it tell us whether this is a pooled connection.
             PooledConnection pooled = (PooledConnection) connection.unwrap(PooledConnection)
             pooled.setDiscarded(true)
-        } catch (Exception e) {
+        } catch (Throwable t) {
+            // Throwable rather than Exception: under a pool that is not tomcat-jdbc the class
+            // above may not be on the classpath at all, and a NoClassDefFoundError here must
+            // still leave the connection to be closed below rather than leaked.
             log.error("Cannot discard ${connection.getClass().name} after a failed " +
                     "foreign_key_checks restore, so close() may return a session with unknown " +
-                    "foreign_key_checks: " + e.message, e)
+                    "foreign_key_checks: " + t.message, t)
         }
         try {
             connection.close()
