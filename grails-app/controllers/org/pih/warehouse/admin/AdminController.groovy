@@ -16,6 +16,7 @@ import org.pih.warehouse.core.MailService
 import org.pih.warehouse.jobs.SendStockAlertsJob
 import org.springframework.boot.info.GitProperties
 import org.springframework.web.multipart.MultipartFile
+import util.ConfigMasker
 
 import javax.print.*
 import java.awt.print.PrinterJob
@@ -200,6 +201,14 @@ class AdminController {
 //        }
 
 
+        // The merged Grails config includes every property source, systemEnvironment among them
+        // (Grails 3.3 PropertySourcesConfig.initializeFromPropertySources). Drop the environment
+        // keys outright - nothing in this page needs them - and mask what is left, here rather
+        // than in the view, so that no future tab can render the raw map by accident.
+        Map externalConfigProperties = ConfigMasker.mask(
+                ConfigMasker.withoutKeys(grailsApplication.config.toProperties(), System.getenv().keySet())
+        ).sort()
+
         [
                 gitProperties           : gitProperties,
                 quartzScheduler         : quartzScheduler,
@@ -208,7 +217,10 @@ class AdminController {
                 enabled                 : Boolean.valueOf(grailsApplication.config.grails.mail.enabled),
                 from                    : "${config.getProperty("grails.mail.from")}",
                 host                    : "${config.getProperty("grails.mail.host")}",
-                port                    : "${config.getProperty("grails.mail.port")}"
+                port                    : "${config.getProperty("grails.mail.port")}",
+                mailProperties          : ConfigMasker.mask(grailsApplication.config.grails.mail),
+                externalConfigProperties: externalConfigProperties,
+                systemProperties        : ConfigMasker.mask(System.properties).sort()
         ]
     }
 

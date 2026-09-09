@@ -173,18 +173,13 @@
                     </div>
                     <div id="tabs-2">
                         <table>
-                            <g:each in="${grailsApplication.config.grails.mail}" var="property">
+                            <g:each in="${mailProperties}" var="property">
                                 <tr class="prop">
                                     <td class="name">
                                         <label>${property.key}</label>
                                     </td>
                                     <td>
-                                        <g:if test="${property.key?.contains('password') && property.value }">
-                                            ${util.StringUtil.mask(property.value, "*")}
-                                        </g:if>
-                                        <g:else>
-                                            ${property.value }
-                                        </g:else>
+                                        ${property.value }
                                     </td>
                                 </tr>
                             </g:each>
@@ -200,28 +195,21 @@
                                     ${grailsApplication.config.grails.config.locations }
                                 </td>
                             </tr>
-                            <g:each in="${grailsApplication.config.toProperties().sort() }" var="externalProperty">
-                                <g:each var="property" in="${externalProperty }">
-                                    <tr class="prop">
-                                        <td class="name">
-                                            <label>${property.key }</label>
-                                        </td>
-                                        <td class="value">
-                                            <g:if test="${property?.key?.contains('password') && property.value}">
-                                                ${util.StringUtil.mask(property?.value, "*")}
-                                            </g:if>
-                                            <g:else>
-                                                ${property.value }
-                                            </g:else>
-                                        </td>
-                                    </tr>
-                                </g:each>
+                            <g:each in="${externalConfigProperties}" var="property">
+                                <tr class="prop">
+                                    <td class="name">
+                                        <label>${property.key }</label>
+                                    </td>
+                                    <td class="value">
+                                        ${property.value }
+                                    </td>
+                                </tr>
                             </g:each>
                         </table>
                     </div>
                     <div id="tabs-4">
                         <table>
-                            <g:each in="${System.properties}" var="prop">
+                            <g:each in="${systemProperties}" var="prop">
                                 <tr class="prop">
                                     <td class="name">
                                         ${prop.key }
@@ -305,24 +293,17 @@
                                     </td>
                                 </tr>
 
-                                <g:each var="externalProperty" in="${externalConfigProperties}" >
-                                    <g:each var="property" in="${externalProperty}">
-                                        <g:if test="${property?.key?.contains('jobs')}">
-                                            <tr class="prop">
-                                                <td class="name">
-                                                    <label>${property.key }</label>
-                                                </td>
-                                                <td class="value">
-                                                    <g:if test="${property?.key?.contains('password') && property.value}">
-                                                        ${util.StringUtil.mask(property?.value, "*")}
-                                                    </g:if>
-                                                    <g:else>
-                                                        ${property.value }
-                                                    </g:else>
-                                                </td>
-                                            </tr>
-                                        </g:if>
-                                    </g:each>
+                                <g:each var="property" in="${externalConfigProperties}">
+                                    <g:if test="${property?.key?.contains('jobs')}">
+                                        <tr class="prop">
+                                            <td class="name">
+                                                <label>${property.key }</label>
+                                            </td>
+                                            <td class="value">
+                                                ${property.value }
+                                            </td>
+                                        </tr>
+                                    </g:if>
                                 </g:each>
                                 <tr class="prop">
                                     <td class="name">
