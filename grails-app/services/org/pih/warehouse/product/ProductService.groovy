@@ -38,6 +38,7 @@ import org.pih.warehouse.LocalizationUtil
 import org.pih.warehouse.inventory.Inventory
 import org.pih.warehouse.inventory.TransactionEntry
 import util.ReportUtil
+import org.pih.warehouse.core.db.SqlBindUtil
 
 /**
  * @author jmiranda*
@@ -1358,78 +1359,101 @@ class ProductService {
     def searchProductDtos(String[] terms) {
         String locale = LocalizationUtil.localizationService.getCurrentLocale().toString()
 
+        Map queryParams = [
+                'exactTerm'      : terms ? terms.join(" ") : "",
+                'synonymTypeCode': SynonymTypeCode.DISPLAY_NAME.name(),
+                'locale'         : locale,
+        ]
+
         def query = """
             select distinct
-            product.id, 
+            product.id,
             product.name,
             product.active,
-            product.product_code as productCode, 
-            product.cold_chain as coldChain, 
-            product.controlled_substance as controlledSubstance, 
-            product.hazardous_material as hazardousMaterial, 
+            product.product_code as productCode,
+            product.cold_chain as coldChain,
+            product.controlled_substance as controlledSubstance,
+            product.hazardous_material as hazardousMaterial,
             product.reconditioned,
             product.unit_of_measure as unitOfMeasure,
             product.lot_and_expiry_control as lotAndExpiryControl,
             # Return whether search term returns an exact match
             ifnull(
-                product.product_code = '${terms.join(" ")}' or 
-                product.upc = '${terms.join(" ")}' or 
-                product.ndc = '${terms.join(" ")}' or 
-                product_supplier.supplier_code = '${terms.join(" ")}' or
-                product_supplier.manufacturer_code = '${terms.join(" ")}', false
+                product.product_code = :exactTerm or
+                product.upc = :exactTerm or
+                product.ndc = :exactTerm or
+                product_supplier.supplier_code = :exactTerm or
+                product_supplier.manufacturer_code = :exactTerm, false
             ) as exactMatch,
             (
-                select max(pc.color) 
-                from product_catalog_item pci 
-                left outer join product_catalog pc on pci.product_catalog_id = pc.id 
-                where pci.product_id = product.id 
+                select max(pc.color)
+                from product_catalog_item pci
+                left outer join product_catalog pc on pci.product_catalog_id = pc.id
+                where pci.product_id = product.id
                 group by pci.product_id
             ) as productColor,
             (
                 select s.name from synonym s
                 where s.product_id = product.id
-                and s.synonym_type_code = '${SynonymTypeCode.DISPLAY_NAME}'
-                and s.locale = '${locale}'
+                and s.synonym_type_code = :synonymTypeCode
+                and s.locale = :locale
                 limit 1
             ) as displayName
             from product """
 
         if (terms && terms.size() > 0) {
+            List<String> manufacturerConditions = []
+            List<String> supplierConditions = []
+            List<String> lotNumberConditions = []
+            List<String> productConditions = []
+
+            terms.eachWithIndex { String term, int index ->
+                // One binding per term: a "starts with" pattern and a "contains" pattern. The %
+                // wildcards live in the bound value, so nothing from the term reaches the SQL text.
+                String prefix = SqlBindUtil.bindValue("termPrefix${index}", "${term}%", queryParams)
+                String contains = SqlBindUtil.bindValue("termContains${index}", "%${term}%", queryParams)
+
+                manufacturerConditions << "lower(manufacturer.name) like ${prefix}"
+                supplierConditions << "lower(supplier.name) like ${prefix}"
+                lotNumberConditions << "lower(inventory_item.lot_number) like ${prefix}"
+                productConditions << """
+                lower(product.name) like ${contains}
+                or lower(product.product_code) like ${prefix}
+                or (synonym.synonym_type_code = :synonymTypeCode and synonym.name like ${contains})
+                or lower(product.description) like ${contains}
+                or lower(product.brand_name) like ${prefix}
+                or lower(product.manufacturer_code) like ${prefix}
+                or lower(product.vendor_code) like ${prefix}
+                or lower(product.upc) like ${prefix}
+                or lower(product.ndc) like ${prefix}
+                or lower(product.unit_of_measure) like ${prefix}
+                or lower(product_supplier.name) like ${contains}
+                or lower(product_supplier.code) like ${prefix}
+                or lower(product_supplier.product_code) like ${prefix}
+                or lower(product_supplier.brand_name) like ${prefix}
+                or lower(product_supplier.manufacturer_code) like ${prefix}
+                or lower(product_supplier.manufacturer_name) like ${prefix}
+                or lower(product_supplier.supplier_code) like ${prefix}
+                or lower(product_supplier.supplier_name) like ${prefix}"""
+            }
+
             query += """
-            left outer join product_supplier 
+            left outer join product_supplier
                 on product.id = product_supplier.product_id
-            left outer join synonym 
+            left outer join synonym
                 on product.id = synonym.product_id
-            left outer join party manufacturer 
-                on product_supplier.manufacturer_id = manufacturer.id 
-                and (${terms.collect { "lower(manufacturer.name) like '${it}%'" }.join(" or ")}) # adding the conditions to join will allow MySQL to optimize the query
-            left outer join party supplier 
-                on product_supplier.supplier_id = supplier.id 
-                and (${terms.collect { "lower(supplier.name) like '${it}%'" }.join(" or ")})
-            left outer join inventory_item 
-                on product.id = inventory_item.product_id 
-                and (${terms.collect { "lower(inventory_item.lot_number) like '${it}%'" }.join(" or ")})
-            where product.active = 1 and (${terms.collect {"""
-                lower(product.name) like '%${it}%' 
-                or lower(product.product_code) like '${it}%' 
-                or (synonym.synonym_type_code = '${SynonymTypeCode.DISPLAY_NAME}' and synonym.name like '%${it}%')
-                or lower(product.description) like '%${it}%'
-                or lower(product.brand_name) like '${it}%' 
-                or lower(product.manufacturer_code) like '${it}%' 
-                or lower(product.vendor_code) like '${it}%'
-                or lower(product.upc) like '${it}%' 
-                or lower(product.ndc) like '${it}%'
-                or lower(product.unit_of_measure) like '${it}%' 
-                or lower(product_supplier.name) like '%${it}%' 
-                or lower(product_supplier.code) like '${it}%'
-                or lower(product_supplier.product_code) like '${it}%' 
-                or lower(product_supplier.brand_name) like '${it}%'
-                or lower(product_supplier.manufacturer_code) like '${it}%'
-                or lower(product_supplier.manufacturer_name) like '${it}%' 
-                or lower(product_supplier.supplier_code) like '${it}%'
-                or lower(product_supplier.supplier_name) like '${it}%'""" }.join(" or ")}
+            left outer join party manufacturer
+                on product_supplier.manufacturer_id = manufacturer.id
+                and (${manufacturerConditions.join(" or ")}) # adding the conditions to join will allow MySQL to optimize the query
+            left outer join party supplier
+                on product_supplier.supplier_id = supplier.id
+                and (${supplierConditions.join(" or ")})
+            left outer join inventory_item
+                on product.id = inventory_item.product_id
+                and (${lotNumberConditions.join(" or ")})
+            where product.active = 1 and (${productConditions.join(" or ")}
                 # when the condition is added to the join, we still need to check if there were any results
-                or manufacturer.id is not null  
+                or manufacturer.id is not null
                 or supplier.id is not null
                 or inventory_item.id is not null)
             order by productCode"""
@@ -1437,7 +1461,7 @@ class ProductService {
             query += " where product.active = 1 "
         }
 
-        def results = dataService.executeQuery(query)
+        def results = dataService.executeQuery(query, queryParams)
 
         return results.collect { new ProductSearchDto(it) }
     }

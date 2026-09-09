@@ -6,6 +6,9 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import org.pih.warehouse.LocalizationUtil
+import org.pih.warehouse.core.LocalizationService
+import org.pih.warehouse.data.DataService
 import org.pih.warehouse.product.Product
 import org.pih.warehouse.product.ProductIdentifierService
 import org.pih.warehouse.product.ProductService
@@ -64,5 +67,52 @@ class ProductServiceSpec extends Specification implements DataTest {
         then:
         returnedProduct != null
         // Verify other fields such as productCode
+    }
+
+    void 'searchProductDtos should bind search terms instead of concatenating them'() {
+        given: 'a search term that is an injection attempt'
+        String payload = "a%'\nunion\nselect\n1,2,3\nfrom\nuser\n--\n"
+        String capturedSql = null
+        Map capturedParams = null
+        GroovyMock(LocalizationUtil, global: true)
+        LocalizationUtil.localizationService >> Stub(LocalizationService) {
+            getCurrentLocale() >> Locale.ENGLISH
+        }
+        service.dataService = Stub(DataService) {
+            executeQuery(_ as String, _ as Map) >> { String sql, Map params ->
+                capturedSql = sql
+                capturedParams = params
+                return []
+            }
+        }
+
+        when:
+        service.searchProductDtos(['aspirin', payload] as String[])
+
+        then: 'no part of either term reaches the SQL text'
+        capturedSql != null
+        !capturedSql.contains(payload)
+        !capturedSql.contains('aspirin')
+        !capturedSql.contains('union')
+
+        and: 'each term is bound twice, as a prefix pattern and as a contains pattern'
+        capturedParams['termPrefix0'] == 'aspirin%'
+        capturedParams['termContains0'] == '%aspirin%'
+        capturedParams['termPrefix1'] == "${payload}%".toString()
+        capturedParams['termContains1'] == "%${payload}%".toString()
+
+        and: 'the exact-match comparison and the display-name subquery are bound too'
+        capturedParams['exactTerm'] == "aspirin ${payload}".toString()
+        capturedParams['synonymTypeCode'] == 'DISPLAY_NAME'
+        capturedParams.containsKey('locale')
+
+        and: 'the query refers to those parameters'
+        capturedSql.contains('lower(product.name) like :termContains0')
+        capturedSql.contains('lower(product.product_code) like :termPrefix0')
+        capturedSql.contains('product.product_code = :exactTerm')
+
+        and: 'the manufacturer-name search stays a prefix match, not a contains match, matching pre-change behaviour'
+        capturedSql.contains('lower(product_supplier.manufacturer_name) like :termPrefix0')
+        !capturedSql.contains('lower(product_supplier.manufacturer_name) like :termContains0')
     }
 }
