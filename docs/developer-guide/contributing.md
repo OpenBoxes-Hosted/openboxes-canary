@@ -28,6 +28,8 @@ branch we need to merge your changes into.
 
 1. Write a test for your changes (if you have trouble with this step please comment in your ticket that you'd like some help). **NOTE:** Tests are required for features and bug fixes, but not for documentation and translation changes.
 
+1. If your change includes a database migration, read `grails-app/migrations/README.md` first - in particular the section on scoping foreign-key and index preconditions to a single schema.
+
 1. Run tests. 
         
         grails test-app unit:
