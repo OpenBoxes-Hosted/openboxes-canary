@@ -46,14 +46,16 @@
                             <a href="#tabs-7" id="cache-tab">
                                 <warehouse:message code="admin.cache.header" default="Caches"/></a>
                         </li>
-                        <li>
-                            <a href="${request.contextPath}/admin/showDatabaseStatus">
-                                <warehouse:message code="admin.database.status.label" default="Database Status"/></a></li>
-                        </li>
-                        <li>
-                            <a href="${request.contextPath}/admin/showDatabaseProcessList">
-                                <warehouse:message code="admin.database.processListlabel" default="Database Process List"/></a></li>
-                        </li>
+                        <g:isSuperuser>
+                            <li>
+                                <a href="${request.contextPath}/admin/showDatabaseStatus">
+                                    <warehouse:message code="admin.database.status.label" default="Database Status"/></a></li>
+                            </li>
+                            <li>
+                                <a href="${request.contextPath}/admin/showDatabaseProcessList">
+                                    <warehouse:message code="admin.database.processListlabel" default="Database Process List"/></a></li>
+                            </li>
+                        </g:isSuperuser>
                     </ul>
                     <div id="tabs-1">
                         <table>

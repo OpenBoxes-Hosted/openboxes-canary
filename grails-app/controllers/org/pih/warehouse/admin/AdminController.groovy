@@ -18,6 +18,7 @@ import org.springframework.boot.info.GitProperties
 import org.springframework.web.multipart.MultipartFile
 import util.ConfigMasker
 
+import java.sql.SQLException
 import javax.print.*
 import java.awt.print.PrinterJob
 import java.util.concurrent.FutureTask
@@ -31,6 +32,11 @@ class AdminController {
     def quartzScheduler
     def dataService
     GitProperties gitProperties
+
+    private static final String UNAVAILABLE_DIAGNOSTIC =
+            "<pre>This diagnostic could not be read. The database account this application uses " +
+            "does not have the privileges the query requires, which is the expected configuration " +
+            "for an application account. Ask your database administrator for this information.</pre>"
 
     def index() {}
 
@@ -176,14 +182,29 @@ class AdminController {
     }
 
     def showDatabaseStatus() {
-        def results = dataService.executeQuery("show engine innodb status")
-        render "<pre>${results.Status[0]}</pre>"
+        try {
+            def results = dataService.executeQuery("show engine innodb status")
+            if (!results) {
+                render UNAVAILABLE_DIAGNOSTIC
+                return
+            }
+            render "<pre>${results.Status[0]}</pre>"
+        } catch (Exception e) {
+            // SHOW ENGINE INNODB STATUS requires the PROCESS privilege, which an application
+            // account should not hold. Report that rather than returning a 500 on every hit.
+            log.warn("Unable to read InnoDB status: " + e.message)
+            render UNAVAILABLE_DIAGNOSTIC
+        }
     }
 
     def showDatabaseProcessList() {
-        def processlist = dataService.executeQuery("show processlist")
-
-        render "<pre>${processlist.join('<br/>')}</pre>"
+        try {
+            def processlist = dataService.executeQuery("show processlist")
+            render "<pre>${processlist.join('<br/>')}</pre>"
+        } catch (Exception e) {
+            log.warn("Unable to read the database process list: " + e.message)
+            render UNAVAILABLE_DIAGNOSTIC
+        }
     }
 
     def showSettings() {

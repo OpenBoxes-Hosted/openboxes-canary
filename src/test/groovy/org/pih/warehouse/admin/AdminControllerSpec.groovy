@@ -1,11 +1,14 @@
 package org.pih.warehouse.admin
 
 import grails.testing.web.controllers.ControllerUnitTest
+import org.pih.warehouse.data.DataService
 import org.quartz.Scheduler
 import org.springframework.boot.info.GitProperties
 import spock.lang.Specification
 
 import util.ConfigMasker
+
+import java.sql.SQLException
 
 /**
  * Administration > Settings renders the merged Grails config. Grails 3.3.16 merges every
@@ -62,5 +65,50 @@ class AdminControllerSpec extends Specification implements ControllerUnitTest<Ad
 
         cleanup:
         System.clearProperty('spec.fake.password')
+    }
+
+    void 'showDatabaseStatus renders an explanation instead of failing when the query is refused'() {
+        given: 'a database account without PROCESS - SHOW ENGINE INNODB STATUS is refused'
+        controller.dataService = Stub(DataService) {
+            executeQuery('show engine innodb status') >> {
+                throw new SQLException("Access denied; you need (at least one of) the PROCESS privilege(s)")
+            }
+        }
+
+        when:
+        controller.showDatabaseStatus()
+
+        then:
+        noExceptionThrown()
+        response.status == 200
+        response.text.contains('could not be read')
+    }
+
+    void 'showDatabaseStatus renders an explanation instead of failing when the query returns nothing'() {
+        given: 'some servers answer the query with no rows rather than refusing it'
+        controller.dataService = Stub(DataService) {
+            executeQuery('show engine innodb status') >> []
+        }
+
+        when:
+        controller.showDatabaseStatus()
+
+        then:
+        noExceptionThrown()
+        response.text.contains('could not be read')
+    }
+
+    void 'showDatabaseProcessList renders an explanation instead of failing when the query is refused'() {
+        given:
+        controller.dataService = Stub(DataService) {
+            executeQuery('show processlist') >> { throw new SQLException("Access denied") }
+        }
+
+        when:
+        controller.showDatabaseProcessList()
+
+        then:
+        noExceptionThrown()
+        response.text.contains('could not be read')
     }
 }
