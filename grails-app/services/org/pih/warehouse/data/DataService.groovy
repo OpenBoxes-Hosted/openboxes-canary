@@ -62,6 +62,17 @@ class DataService {
     }
 
     /**
+     * Executes a statement whose values are supplied as named parameters (":name" in the statement,
+     * matching keys in the params map) so that no value is concatenated into the SQL text.
+     *
+     * Delegates to executeStatements, which owns the connection and restores the session state the
+     * batch changed. Nothing in this class opens a second connection.
+     */
+    void executeStatement(String statement, Map params, Boolean logStatement = true) {
+        executeStatements([[sql: statement, params: params]], logStatement)
+    }
+
+    /**
      * Runs every statement in the batch on one connection, and restores the session state the
      * batch changed even when a statement fails.
      *
