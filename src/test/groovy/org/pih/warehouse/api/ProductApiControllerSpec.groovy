@@ -127,4 +127,25 @@ class ProductApiControllerSpec extends Specification implements DataTest, Contro
         response.status == 200
         return response.json
     }
+
+    void "search should pass the typed term through unchanged, without escaping quotes"() {
+        given: 'a search term containing an apostrophe'
+        String[] capturedTerms = null
+        productServiceStub.searchProductDtos(_) >> { args ->
+            // Spock hands a single-parameter interaction closure the invocation's argument
+            // list, not the raw array: searchProductDtos(String[]) has one formal parameter,
+            // so args is a one-element List whose only entry is the actual String[] terms.
+            capturedTerms = args[0] as String[]
+            return []
+        }
+        grailsApplication.config.openboxes.typeahead.minLength = 3
+        params.name = "O'Brien"
+
+        when:
+        controller.search()
+
+        then: 'the apostrophe is not rewritten to a backslash escape'
+        capturedTerms == ["O'Brien"] as String[]
+        !capturedTerms[0].contains('\\')
+    }
 }

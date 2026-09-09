@@ -1302,11 +1302,15 @@ class ProductAvailabilityService {
         // First update records that won't violate product_availability_uniq_idx (location_id, product_code, lot_number, bin_location_name)
         String updateStatement = """
             UPDATE IGNORE product_availability
-            SET product_code = '${primaryProduct.productCode}', 
-                product_id = '${primaryProduct.id}' 
-            WHERE inventory_item_id = '${obsoleteInventoryItem.id}';
+            SET product_code = :productCode,
+                product_id = :productId
+            WHERE inventory_item_id = :inventoryItemId
         """
-        dataService.executeStatement(updateStatement)
+        dataService.executeStatement(updateStatement, [
+                productCode    : primaryProduct.productCode,
+                productId      : primaryProduct.id,
+                inventoryItemId: obsoleteInventoryItem.id,
+        ])
         log.info "Updated product availabilities for product: ${primaryProduct?.productCode} and " +
             "inventory item: ${obsoleteInventoryItem?.id}"
 
@@ -1326,13 +1330,19 @@ class ProductAvailabilityService {
         // First update records that won't violate product_availability_uniq_idx (location_id, product_code, lot_number, bin_location_name)
         String updateStatement = """
             UPDATE IGNORE product_availability
-            SET product_code = '${primaryProduct.productCode}', 
-                product_id = '${primaryProduct.id}', 
-                inventory_item_id = '${primaryInventoryItem.id}', 
-                lot_number = '${primaryInventoryItem.lotNumber ?: 'DEFAULT'}' 
-            WHERE inventory_item_id = '${obsoleteInventoryItem.id}';
+            SET product_code = :productCode,
+                product_id = :productId,
+                inventory_item_id = :primaryInventoryItemId,
+                lot_number = :lotNumber
+            WHERE inventory_item_id = :inventoryItemId
         """
-        dataService.executeStatement(updateStatement)
+        dataService.executeStatement(updateStatement, [
+                productCode           : primaryProduct.productCode,
+                productId             : primaryProduct.id,
+                primaryInventoryItemId: primaryInventoryItem.id,
+                lotNumber             : primaryInventoryItem.lotNumber ?: 'DEFAULT',
+                inventoryItemId       : obsoleteInventoryItem.id,
+        ])
         log.info "Updated product availabilities for product: ${primaryProduct?.productCode} and " +
             "inventory item: ${primaryInventoryItem?.id} with obsolete inventory item: ${obsoleteInventoryItem.id}"
 
