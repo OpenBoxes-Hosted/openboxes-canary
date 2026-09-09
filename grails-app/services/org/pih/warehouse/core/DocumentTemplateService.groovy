@@ -99,7 +99,8 @@ class DocumentTemplateService {
                 TemplateEngineKind.Velocity : TemplateEngineKind.Freemarker
 
             InputStream inputStream = new ByteArrayInputStream(documentTemplate.fileContents)
-            IXDocReport report = XDocReportRegistry.getRegistry().loadReport(inputStream, templateEngineKind);
+            IXDocReport report = XDocReportRegistry.getRegistry()
+                .loadReport(inputStream, HardenedTemplateEngines.hardened(templateEngineKind));
 
             // FIXME Need a better way to handle this generically (consider using config + dataService)
             IContext context = orderInstance ? createOrderContext(report, orderInstance) : report.createContext();
@@ -293,7 +294,8 @@ class DocumentTemplateService {
     def renderRequisitionDocumentTemplate(Document documentTemplate, Requisition requisitionInstance, ConverterTypeTo targetDocumentType, OutputStream outputStream) {
         try {
             InputStream inputStream = new ByteArrayInputStream(documentTemplate.fileContents)
-            IXDocReport report = XDocReportRegistry.getRegistry().loadReport(inputStream, TemplateEngineKind.Freemarker)
+            IXDocReport report = XDocReportRegistry.getRegistry()
+                .loadReport(inputStream, HardenedTemplateEngines.hardened(TemplateEngineKind.Freemarker))
 
             IContext context = createRequisitionContext(report, requisitionInstance)
 
