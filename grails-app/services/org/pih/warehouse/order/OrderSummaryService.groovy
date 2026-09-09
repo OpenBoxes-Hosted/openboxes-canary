@@ -23,7 +23,7 @@ class OrderSummaryService {
 
     DataService dataService
 
-    String getOrderItemStatusSelect(String orderId) {
+    String getOrderItemStatusSelect() {
         return """
             SELECT
                 order_id,
@@ -50,13 +50,13 @@ class OrderSummaryService {
                     LEFT OUTER JOIN shipment_item ON shipment_item.id = order_shipment.shipment_item_id
                     LEFT OUTER JOIN shipment ON shipment.id = shipment_item.shipment_id
                 WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                    AND `order`.id = '${orderId}'
+                    AND `order`.id = :orderId
                 GROUP BY `order`.id, order_item.id, shipment.id
             ) AS order_item_status GROUP BY order_id, order_item_id
         """
     }
 
-    String getOrderItemReceiptStatusSelect(String orderId) {
+    String getOrderItemReceiptStatusSelect() {
         return """
             SELECT
                 order_id,
@@ -78,7 +78,7 @@ class OrderSummaryService {
                     LEFT OUTER JOIN shipment ON shipment.id = shipment_item.shipment_id
                     LEFT OUTER JOIN receipt_item ON receipt_item.shipment_item_id = shipment_item.id
                 WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                    AND `order`.id = '${orderId}'
+                    AND `order`.id = :orderId
                     AND order_item.order_item_status_code != 'CANCELLED'
                     AND shipment.current_status = 'RECEIVED' OR shipment.current_status = 'PARTIALLY_RECEIVED'
                 GROUP BY `order`.id, `order`.order_number, order_item.id, shipment.id
@@ -86,7 +86,7 @@ class OrderSummaryService {
         """
     }
 
-    String getOrderItemPaymentStatusSelect(String orderId) {
+    String getOrderItemPaymentStatusSelect() {
         return """
             SELECT
                 order_id,
@@ -109,7 +109,7 @@ class OrderSummaryService {
                     LEFT OUTER JOIN invoice_item ON invoice_item.id = shipment_invoice.invoice_item_id
                     LEFT OUTER JOIN invoice ON invoice.id = invoice_item.invoice_id
                 WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                    AND `order`.id = '${orderId}'
+                    AND `order`.id = :orderId
                     AND order_item.order_item_status_code != 'CANCELLED'
                     AND (invoice.invoice_type_id != '5' OR invoice.invoice_type_id IS NULL)
                     AND invoice.date_posted IS NOT NULL
@@ -119,7 +119,7 @@ class OrderSummaryService {
         """
     }
 
-    String getOrderItemSummarySelect(String orderId) {
+    String getOrderItemSummarySelect() {
         return """
             SELECT
                 order_item_id AS id,
@@ -178,17 +178,17 @@ class OrderSummaryService {
                     END AS payment_status
                 FROM order_item
                     JOIN `order` ON order_item.order_id = `order`.id
-                    LEFT OUTER JOIN (${getOrderItemStatusSelect(orderId)}) order_item_status ON order_item_status.order_item_id = order_item.id
-                    LEFT OUTER JOIN (${getOrderItemReceiptStatusSelect(orderId)}) order_receipt_status ON order_receipt_status.order_item_id = order_item.id
-                    LEFT OUTER JOIN (${getOrderItemPaymentStatusSelect(orderId)}) order_item_payment_status ON order_item_payment_status.order_item_id = order_item.id
+                    LEFT OUTER JOIN (${getOrderItemStatusSelect()}) order_item_status ON order_item_status.order_item_id = order_item.id
+                    LEFT OUTER JOIN (${getOrderItemReceiptStatusSelect()}) order_receipt_status ON order_receipt_status.order_item_id = order_item.id
+                    LEFT OUTER JOIN (${getOrderItemPaymentStatusSelect()}) order_item_payment_status ON order_item_payment_status.order_item_id = order_item.id
                 WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                    AND `order`.id = '${orderId}'
+                    AND `order`.id = :orderId
                 GROUP BY order_item.id
             ) AS order_item_summary
         """
     }
 
-    String getOrderAdjustmentPaymentStatusSelect(String orderId) {
+    String getOrderAdjustmentPaymentStatusSelect() {
         return """
             SELECT
                 order_id,
@@ -216,7 +216,7 @@ class OrderSummaryService {
                     LEFT OUTER JOIN invoice_item ON invoice_item.id = order_adjustment_invoice.invoice_item_id
                     LEFT OUTER JOIN invoice ON invoice.id = invoice_item.invoice_id
                 WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                    AND `order`.id = '${orderId}'
+                    AND `order`.id = :orderId
                     AND (invoice.invoice_type_id != '5' OR invoice.invoice_type_id IS NULL)
                     AND (invoice_item.inverse IS NULL OR invoice_item.inverse = FALSE)
                     AND order_adjustment.canceled != 1
@@ -225,7 +225,7 @@ class OrderSummaryService {
         """
     }
 
-    String getOrderSummarySelect(String orderId) {
+    String getOrderSummarySelect() {
         return """
             SELECT
                 id,
@@ -308,7 +308,7 @@ class OrderSummaryService {
                         0                                                       AS invoiced_adjustments_amount
                     FROM `order`
                         LEFT OUTER JOIN order_item ON order_item.order_id = `order`.id
-                        LEFT OUTER JOIN (${getOrderItemSummarySelect(orderId)}) order_item_summary ON order_item_summary.id = order_item.id
+                        LEFT OUTER JOIN (${getOrderItemSummarySelect()}) order_item_summary ON order_item_summary.id = order_item.id
                     WHERE `order`.order_type_id = 'PURCHASE_ORDER'
                     GROUP BY `order`.id
                     UNION SELECT
@@ -331,7 +331,7 @@ class OrderSummaryService {
                         LEFT OUTER JOIN order_adjustment ON order_adjustment.order_id = `order`.id
                         LEFT OUTER JOIN (
                             SELECT adjustment_id, SUM(invoiced_amount) as invoiced_amount, IF(SUM(quantity_invoiced) > 0, 1, 0) as quantity_invoiced
-                            FROM (${getOrderAdjustmentPaymentStatusSelect(orderId)}) AS order_adjustment_payment_status
+                            FROM (${getOrderAdjustmentPaymentStatusSelect()}) AS order_adjustment_payment_status
                             GROUP BY adjustment_id
                             ) as order_adjustment_payment_statuses ON order_adjustment_payment_statuses.adjustment_id = order_adjustment.id
                         LEFT OUTER JOIN (
@@ -355,7 +355,7 @@ class OrderSummaryService {
                                     ) AS total_adjustment
                                 FROM `order`
                                     LEFT OUTER JOIN order_adjustment ON order_adjustment.order_id = `order`.id
-                                    LEFT OUTER JOIN (${getOrderAdjustmentPaymentStatusSelect(orderId)}) order_adjustment_payment_status ON order_adjustment_payment_status.adjustment_id = order_adjustment.id
+                                    LEFT OUTER JOIN (${getOrderAdjustmentPaymentStatusSelect()}) order_adjustment_payment_status ON order_adjustment_payment_status.adjustment_id = order_adjustment.id
                                     LEFT OUTER JOIN order_item ON order_adjustment.order_item_id = order_item.id
                                     LEFT OUTER JOIN (
                                         SELECT oi.order_id AS order_id,
@@ -369,11 +369,11 @@ class OrderSummaryService {
                             ) AS amount_per_order_by_adjustment
                         GROUP BY amount_per_order_by_adjustment.order_id) AS total_adjustments ON total_adjustments.order_id = `order`.id
                     WHERE `order`.order_type_id = 'PURCHASE_ORDER'
-                        AND `order`.id = '${orderId}'
+                        AND `order`.id = :orderId
                         AND order_adjustment.canceled IS NOT TRUE
                     GROUP BY `order`.id) AS items_and_adjustments_union
                 GROUP BY id, order_status) AS order_summary
-            WHERE id = '${orderId}'
+            WHERE id = :orderId
         """
     }
 
@@ -403,17 +403,20 @@ class OrderSummaryService {
      * Refreshing the Order Summary materialized view for a specific list of Order Ids (PASS ONLY A PO IDs)
      * */
     def refreshOrderSummary(List<String> orderIds, Boolean isDelete) {
-        List statements = []
+        List<Map> statements = []
         orderIds?.each { String orderId ->
             if (isDelete) {
-                statements << "DELETE FROM order_summary_mv WHERE id = '${orderId}';"
+                statements << [sql: "DELETE FROM order_summary_mv WHERE id = :orderId", params: [orderId: orderId]]
             } else {
-                String orderSummarySelect = getOrderSummarySelect(orderId)
-                statements << "REPLACE INTO order_summary_mv (${orderSummarySelect});"
+                String orderSummarySelect = getOrderSummarySelect()
+                statements << [sql: "REPLACE INTO order_summary_mv (${orderSummarySelect})".toString(), params: [orderId: orderId]]
             }
         }
 
         if (statements && checkIfOrderSummaryExists()) {
+            // One call, one batch, one connection: the whole list goes through the core Task P2.7-1
+            // created. A loop of single-statement calls would borrow a connection per order id and
+            // run the foreign_key_checks read/restore N times instead of once.
             dataService.executeStatements(statements, false)
         }
     }
@@ -434,8 +437,8 @@ class OrderSummaryService {
     }
 
     def getOrderItemsDerivedStatus(String orderId) {
-        String orderItemSummarySelect = getOrderItemSummarySelect(orderId)
-        List orderItemSummaryList = dataService.executeQuery(orderItemSummarySelect)
+        String orderItemSummarySelect = getOrderItemSummarySelect()
+        List orderItemSummaryList = dataService.executeQuery(orderItemSummarySelect, [orderId: orderId])
         orderItemSummaryList.inject([:]) { map, Map item -> map << [(item?.id): item?.derived_status] }
     }
 }
