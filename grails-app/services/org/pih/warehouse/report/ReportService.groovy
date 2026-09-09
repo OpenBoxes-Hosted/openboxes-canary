@@ -32,6 +32,7 @@ import org.pih.warehouse.forecasting.ForecastingService
 import org.pih.warehouse.core.Tag
 import org.pih.warehouse.core.UserService
 import org.pih.warehouse.data.DataService
+import org.pih.warehouse.core.db.SqlBindUtil
 import org.pih.warehouse.inventory.InventoryCount
 import org.pih.warehouse.inventory.CycleCountItem
 import org.pih.warehouse.inventory.Inventory
@@ -831,10 +832,12 @@ class ReportService implements ApplicationContextAware {
 
             query += " WHERE date_issued BETWEEN :startDate AND :endDate AND pdd.origin_id = :originId"
 
+            Map queryParams = [:]
+
             if (params.locations && params.locations != "null") {
                 def destinations = []
                 params.locations.getClass().isArray() ? params.locations.each { destinations << it } : destinations << params.locations
-                query += " AND pdd.destination_id in (${destinations.collect { "'$it'" }.join(',')})"
+                query += " AND pdd.destination_id in (${SqlBindUtil.bindList('destinationId', destinations, queryParams)})"
             }
 
             if (params.category && params.category != "null") {
@@ -856,22 +859,22 @@ class ReportService implements ApplicationContextAware {
                 }
 
                 categories = categories.unique()
-                query += " AND product.category_id in (${categories.collect { "'$it.id'" }.join(',')})"
+                query += " AND product.category_id in (${SqlBindUtil.bindList('categoryId', categories.collect { it.id }, queryParams)})"
             }
 
             if (params.tags && params.tags != "null") {
                 def tags = []
                 params.tags.getClass().isArray() ? params.tags.each { tags << it } : tags << params.tags
-                query += " AND product_tag.tag_id in (${tags.collect { "'$it'" }.join(',')})"
+                query += " AND product_tag.tag_id in (${SqlBindUtil.bindList('tagId', tags, queryParams)})"
             }
 
             if (params.catalogs && params.catalogs != "null") {
                 def catalogs = []
                 params.catalogs.getClass().isArray() ? params.catalogs.each { catalogs << it } : catalogs << params.catalogs
-                query += " AND product_catalog_item.product_catalog_id in (${catalogs.collect { "'$it'" }.join(',')})"
+                query += " AND product_catalog_item.product_catalog_id in (${SqlBindUtil.bindList('catalogId', catalogs, queryParams)})"
             }
 
-            def results = dataService.executeQuery(query, params)
+            def results = dataService.executeQuery(query, params + queryParams)
             if (results) {
                 def onOrderData = getOnOrderData(params.originId, results.collect{it.product_id}.unique())
                 def monthsInPeriod = (params.endDate - params.startDate) / 30

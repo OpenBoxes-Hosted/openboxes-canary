@@ -26,6 +26,7 @@ import org.pih.warehouse.inventory.OutgoingStockMovementCounts
 import org.pih.warehouse.requisition.RequisitionSourceType
 import org.pih.warehouse.shipping.Shipment
 import util.ConfigHelper
+import org.pih.warehouse.core.db.SqlBindUtil
 
 @Transactional
 // TODO: Get rid of this annotation (It has to be used with @transactional and dynamically typed keys)
@@ -130,16 +131,14 @@ class IndicatorDataService {
         String extraCondition = ''
         String conditionStarter = 'where'
 
+        Map categoryParams = [:]
         if( listFiltersSelected.contains('category') && listValues.size > 0) {
             extraCondition = """
             join product as p on fr.product_id = p.id 
             join category as c on p.category_id = c.id
             where (
+            c.id in (${SqlBindUtil.bindList('categoryId', listValues, categoryParams)})
             """
-            for(int i = 0; i < listValues.size; i ++) {
-                extraCondition = "${extraCondition} c.id = '${listValues[i]}'"
-                extraCondition = i<listValues.size - 1 ? "${extraCondition} or" : extraCondition
-            }
             conditionStarter = ') and'
         }
 
@@ -177,7 +176,7 @@ class IndicatorDataService {
                 'monthBegin'  : monthBegin,
                 'destination' : destination?.id,
                 'origin'      : location.id,
-            ]);
+            ] + categoryParams);
 
             averageFillRate[0] == null ? averageFillRateResult.push(0) : averageFillRateResult.push(averageFillRate[0][0])
 
@@ -195,7 +194,7 @@ class IndicatorDataService {
                 'monthBegin'  : monthBegin,
                 'destination' : destination?.id,
                 'origin'      : location.id,
-            ]);
+            ] + categoryParams);
 
             requestLinesSubmitted[0] == null ? requestLinesSubmittedResult.push(0) : requestLinesSubmittedResult.push(requestLinesSubmitted[0][0])
 
@@ -213,7 +212,7 @@ class IndicatorDataService {
                 'monthBegin'  : monthBegin,
                 'destination' : destination?.id,
                 'origin'      : location.id,
-            ]);
+            ] + categoryParams);
 
             linesCancelledStockout[0] == null ? linesCancelledStockoutResult.push(0) : linesCancelledStockoutResult.push(linesCancelledStockout[0][0])
         }
@@ -254,16 +253,14 @@ class IndicatorDataService {
         String extraCondition = ''
         String conditionStarter = 'where'
 
+        Map categoryParams = [:]
         if( listFiltersSelected.contains('category') && listValues.size > 0) {
             extraCondition = """
             join product as p on fr.product_id = p.id 
             join category as c on p.category_id = c.id
             where (
+            c.id in (${SqlBindUtil.bindList('categoryId', listValues, categoryParams)})
             """
-            for(int i = 0; i < listValues.size; i ++) {
-                extraCondition = "${extraCondition} c.id = '${listValues[i]}'"
-                extraCondition = i<listValues.size - 1 ? "${extraCondition} or" : extraCondition
-            }
             conditionStarter = ') and'
         }
 
@@ -288,8 +285,7 @@ class IndicatorDataService {
                 'monthBegin'  : monthBegin,
                 'monthEnd'    : monthEnd,
                 'origin'      : origin.id,
-                'listValues'  : listValues,
-            ]);
+            ] + categoryParams);
 
             averageFillRate[0] == null ? averageFillRateResult.push(0) : averageFillRateResult.push(averageFillRate[0][0])
         }
