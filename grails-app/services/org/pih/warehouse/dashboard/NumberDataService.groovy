@@ -23,6 +23,7 @@ import org.pih.warehouse.requisition.RequisitionSourceType
 import org.pih.warehouse.requisition.RequisitionStatus
 import org.pih.warehouse.shipping.ShipmentStatusCode
 import util.ConfigHelper
+import org.pih.warehouse.core.db.SqlBindUtil
 
 class NumberDataService {
 
@@ -286,7 +287,8 @@ class NumberDataService {
         def openPurchaseOrdersCount = 0
 
         if (params.value) {
-            def supplierIds = params.list('value').toList().collect { "'$it'" }.join(',')
+            Map queryParams = [:]
+            def supplierIds = SqlBindUtil.bindList('supplierId', params.list('value').toList(), queryParams)
             def pendingShipmentStatues = ShipmentStatusCode.listPending().collect { "'$it'" }.join(',')
             def pendingOrderStatuses = OrderStatus.listPending().collect { "'$it'" }.join(',')
             def openPurchaseOrders = dataService.executeQuery("""
@@ -304,7 +306,7 @@ class NumberDataService {
                         (shipment.id IS NOT NULL AND shipment.current_status IN (${pendingShipmentStatues})) OR 
                         (shipment.id IS NULL AND o.status IN (${pendingOrderStatuses}))
                     )
-            """)
+            """, queryParams)
 
             openPurchaseOrdersCount = openPurchaseOrders?.size() ? openPurchaseOrders[0].openPurchaseOrdersCount : 0
         }
