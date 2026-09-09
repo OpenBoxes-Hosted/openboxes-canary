@@ -690,7 +690,7 @@ class ShipmentController {
 				where shipment.id = container.shipment_id
 				and shipment_item.container_id = container.id
 				and shipment_item.product_id = product.id 
-				and shipment.id = ${params.id}"""
+				and shipment.id = ?"""
 
             StringWriter sw = new StringWriter()
             CSVWriter writer = new CSVWriter(sw)
@@ -704,7 +704,7 @@ class ShipmentController {
             colArray.putAt(4, "item")
             colArray.putAt(5, "serial number")
             writer.writeNext(colArray)
-            sql.eachRow(query) { row ->
+            sql.eachRow(query, [params.id]) { row ->
 
                 def rowArray = new String[6]
                 rowArray.putAt(0, row[0])
