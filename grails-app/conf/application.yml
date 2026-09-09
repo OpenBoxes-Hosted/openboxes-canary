@@ -325,6 +325,17 @@ environments:
             username: "openboxes"
             password: "openboxes"
             url: jdbc:mysql://localhost:3306/openboxes?serverTimezone=UTC&useSSL=false
+        grails:
+            # The Groovy console executes arbitrary code in the running JVM and the dbconsole is a
+            # SQL client over HTTP. Both are enabled above for development; neither belongs on a
+            # production deployment, where a single compromised or over-privileged account turns
+            # them into full application and database access.
+            # https://github.com/sheehan/grails-console#security
+            plugin:
+                console:
+                    enabled: false
+            dbconsole:
+                enabled: false
 ---
 openboxes:
     ajaxRequest:
