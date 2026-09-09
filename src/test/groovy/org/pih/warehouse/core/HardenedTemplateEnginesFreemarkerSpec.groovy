@@ -19,11 +19,20 @@ import java.util.concurrent.Future
 @Unroll
 class HardenedTemplateEnginesFreemarkerSpec extends Specification {
 
+    // The three classes TemplateClassResolver.SAFER_RESOLVER refuses.
+    private static final String EXECUTE = "freemarker.template.utility.Execute"
+    private static final String OBJECT_CONSTRUCTOR = "freemarker.template.utility.ObjectConstructor"
+    private static final String JYTHON_RUNTIME = "freemarker.template.utility.JythonRuntime"
+
     // XDocReport puts its Freemarker configuration in SQUARE_BRACKET_TAG_SYNTAX, so an uploaded
     // template writes directives as [#assign]; ${...} interpolation works in either syntax.
-    private static final String INTERPOLATED = '${"freemarker.template.utility.Execute"?new()("id")}'
-    private static final String DIRECTIVE =
-        '[#assign command = "freemarker.template.utility.Execute"?new()]${command("id")}'
+    private static String interpolated(String className) {
+        return '${"' + className + '"?new()("id")}'
+    }
+
+    private static String directive(String className) {
+        return '[#assign command = "' + className + '"?new()]${command("id")}'
+    }
 
     /** Renders the way XDocReport renders an uploaded template: a Template over the shared configuration. */
     private static String render(String templateContents) {
@@ -49,18 +58,27 @@ class HardenedTemplateEnginesFreemarkerSpec extends Specification {
         assert new Configuration().newBuiltinClassResolver == TemplateClassResolver.UNRESTRICTED_RESOLVER
     }
 
-    void "the hardened configuration refuses to instantiate Execute through ?new [#payload]"() {
+    /**
+     * SAFER_RESOLVER refuses exactly three classes, and refuses them by name before it tries to
+     * load them - so all three are asserted here even though JythonRuntime needs a jython that is
+     * not on the classpath. Both template forms an uploader can write are covered.
+     */
+    void "the hardened configuration refuses to instantiate #className through ?new [#payload]"() {
         when:
         render(payload)
 
         then:
         Exception e = thrown()
-        assert messages(e).any {
-            it.contains("freemarker.template.utility.Execute") && it.contains("not allowed")
-        }
+        assert messages(e).any { it.contains(className) && it.contains("not allowed") }
 
         where:
-        payload << [INTERPOLATED, DIRECTIVE]
+        className          | payload
+        EXECUTE            | interpolated(EXECUTE)
+        OBJECT_CONSTRUCTOR | interpolated(OBJECT_CONSTRUCTOR)
+        JYTHON_RUNTIME     | interpolated(JYTHON_RUNTIME)
+        EXECUTE            | directive(EXECUTE)
+        OBJECT_CONSTRUCTOR | directive(OBJECT_CONSTRUCTOR)
+        JYTHON_RUNTIME     | directive(JYTHON_RUNTIME)
     }
 
     /* Regression guard, not a fix: api_builtin_enabled already defaults to false in
@@ -119,7 +137,7 @@ class HardenedTemplateEnginesFreemarkerSpec extends Specification {
             benignResults << pool.submit({ render('Order: ${order.description}') } as Callable<String>)
             maliciousRefused << pool.submit({
                 try {
-                    render(INTERPOLATED)
+                    render(interpolated(EXECUTE))
                     return false
                 } catch (Exception ignored) {
                     return true

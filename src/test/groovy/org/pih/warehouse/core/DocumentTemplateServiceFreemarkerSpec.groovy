@@ -14,6 +14,12 @@ import java.util.zip.ZipInputStream
  * renderOrderDocumentTemplate and /document/renderRequisitionTemplate reaches
  * renderRequisitionDocumentTemplate. Testing HardenedTemplateEngines alone would still pass if
  * someone put the unhardened XDocReportRegistry.loadReport call back at either call site.
+ *
+ * One mutation is caught only when this spec runs ALONE: deleting the discarded-result
+ * HardenedTemplateEngines.freemarkerConfiguration() call inside hardened(), which leaves
+ * hardened() returning the kind so the interaction features below still pass, while any sibling
+ * spec that touched the holder has already hardened the process-wide configuration and so masks
+ * the refusal features. Run this spec on its own to exercise that one.
  */
 @Unroll
 class DocumentTemplateServiceFreemarkerSpec extends Specification
