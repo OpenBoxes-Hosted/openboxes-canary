@@ -27,6 +27,18 @@ class RoleInterceptorSpec extends Specification {
         'superuser'       | 'console'               | 'execute'                     || 'requires'
         'superuser'       | 'console'               | 'index'                       || 'requires'
         'superuser'       | 'console'               | 'list'                        || 'does not require'
+        // Both gate additions, asserted together: one changeset added the admin rows, another the
+        // document rows, and a rebase that keeps only one half would otherwise pass both of the
+        // task-local specs that cover them.
+        'superuser'       | 'admin'                 | 'showDatabaseStatus'          || 'requires'
+        'superuser'       | 'admin'                 | 'showDatabaseProcessList'     || 'requires'
+        'superuser'       | 'admin'                 | 'showSettings'                || 'does not require'
+        'superuser'       | 'document'              | 'create'                      || 'requires'
+        'superuser'       | 'document'              | 'save'                        || 'requires'
+        'superuser'       | 'document'              | 'update'                      || 'requires'
+        'superuser'       | 'document'              | 'upload'                      || 'requires'
+        'superuser'       | 'document'              | 'uploadDocument'              || 'does not require'
+        'superuser'       | 'document'              | 'saveDocument'                || 'does not require'
         'superuser'       | 'inventory'             | 'createInboundTransfer'       || 'requires'
         'superuser'       | 'inventory'             | 'deleteTransaction'           || 'requires'
         'superuser'       | 'inventory'             | 'list'                        || 'does not require'
