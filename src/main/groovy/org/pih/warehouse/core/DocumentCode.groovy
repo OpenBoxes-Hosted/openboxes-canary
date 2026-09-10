@@ -23,6 +23,7 @@ enum DocumentCode {
     DATA_EXPORT,
     INVOICE_TEMPLATE,
     REQUISITION_TEMPLATE,
+    GSP_TEMPLATE,
 
     static list() {
         [
@@ -37,6 +38,7 @@ enum DocumentCode {
                 DATA_EXPORT,
                 INVOICE_TEMPLATE,
                 REQUISITION_TEMPLATE,
+                GSP_TEMPLATE,
         ]
     }
 
@@ -49,6 +51,7 @@ enum DocumentCode {
                 EMAIL_TEMPLATE,
                 INVOICE_TEMPLATE,
                 REQUISITION_TEMPLATE,
+                GSP_TEMPLATE,
         ]
     }
 

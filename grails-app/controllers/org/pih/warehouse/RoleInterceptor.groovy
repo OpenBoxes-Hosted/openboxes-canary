@@ -53,8 +53,16 @@ class RoleInterceptor {
         'productSupplier': ['create', 'delete', 'edit']
     ]
 
-    def static superuserControllers = []
+    // documentType is the scaffolded DocumentTypeController (static scaffold = DocumentType);
+    // documentCode is plain-bindable, so a manager could otherwise create or flip a type to
+    // GSP_TEMPLATE and retro-promote an uploaded file into an executable template (H-27).
+    def static superuserControllers = ['documentType']
     def static superuserActions = [
+        // Both read server-wide state that is not scoped to the requesting user: SHOW PROCESSLIST
+        // returns every thread belonging to the application's database account, and SHOW ENGINE
+        // INNODB STATUS reports the engine's global state. Neither is per-install data an
+        // administrator of one warehouse should see by virtue of being an administrator.
+        'admin'                     : ['showDatabaseStatus', 'showDatabaseProcessList'],
         'console'                   : ['index', 'execute'],
         'inventory'                 : ['createInboundTransfer', 'createConsumed', 'editTransaction', 'deleteTransaction', 'saveTransaction'],
         'inventoryItem'             : ['adjustStock', 'transferStock'],
@@ -65,7 +73,11 @@ class RoleInterceptor {
         'productsConfigurationApi'  : ['downloadCategories', 'importCategories'],
         'locationType'              : ['create', 'edit', 'delete', 'update', 'save'],
         'quartz'                    : ['*'],
-        'jobs'                      : ['*']
+        'jobs'                      : ['*'],
+        // These four actions can set an arbitrary document type on an arbitrary file
+        // and replace an existing document's contents. Attachment upload and metadata
+        // edits go through uploadDocument / saveDocument and are unaffected.
+        'document'                  : ['create', 'save', 'update', 'upload']
     ]
 
     def static invoiceActions = [

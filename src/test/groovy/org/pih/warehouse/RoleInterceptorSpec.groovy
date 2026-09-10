@@ -27,6 +27,31 @@ class RoleInterceptorSpec extends Specification {
         'superuser'       | 'console'               | 'execute'                     || 'requires'
         'superuser'       | 'console'               | 'index'                       || 'requires'
         'superuser'       | 'console'               | 'list'                        || 'does not require'
+        // Both gate additions, asserted together: one changeset added the admin rows, another the
+        // document rows, and a rebase that keeps only one half would otherwise pass both of the
+        // task-local specs that cover them.
+        'superuser'       | 'admin'                 | 'showDatabaseStatus'          || 'requires'
+        'superuser'       | 'admin'                 | 'showDatabaseProcessList'     || 'requires'
+        'superuser'       | 'admin'                 | 'showSettings'                || 'does not require'
+        'superuser'       | 'document'              | 'create'                      || 'requires'
+        'superuser'       | 'document'              | 'save'                        || 'requires'
+        'superuser'       | 'document'              | 'update'                      || 'requires'
+        'superuser'       | 'document'              | 'upload'                      || 'requires'
+        'superuser'       | 'document'              | 'uploadDocument'              || 'does not require'
+        'superuser'       | 'document'              | 'saveDocument'                || 'does not require'
+        // documentType is the scaffolded DocumentTypeController (static scaffold = DocumentType).
+        // documentCode is plain-bindable, so a manager could otherwise create or flip a type to
+        // GSP_TEMPLATE and retro-promote an uploaded file into an executable template (H-27) --
+        // the whole controller is gated, so read actions are superuser-only too (see below for
+        // the arbitrary-action-name proof of the whole-controller gate).
+        'superuser'       | 'documentType'          | 'create'                      || 'requires'
+        'superuser'       | 'documentType'          | 'save'                        || 'requires'
+        'superuser'       | 'documentType'          | 'edit'                        || 'requires'
+        'superuser'       | 'documentType'          | 'update'                      || 'requires'
+        'superuser'       | 'documentType'          | 'delete'                      || 'requires'
+        'superuser'       | 'documentType'          | 'index'                       || 'requires'
+        'superuser'       | 'documentType'          | 'list'                        || 'requires'
+        'superuser'       | 'documentType'          | 'show'                        || 'requires'
         'superuser'       | 'inventory'             | 'createInboundTransfer'       || 'requires'
         'superuser'       | 'inventory'             | 'deleteTransaction'           || 'requires'
         'superuser'       | 'inventory'             | 'list'                        || 'does not require'
@@ -138,15 +163,18 @@ class RoleInterceptorSpec extends Specification {
         assert needRoleRouter(controller, 'literallyAnything', role) == (requires == 'requires')
 
         where:
-        controller                  | role      || requires
-        'admin'                     | 'admin'   || 'requires'
-        'admin'                     | 'manager' || 'does not require'
-        'admin'                     | 'invoice' || 'does not require'
-        'createProduct'             | 'admin'   || 'requires'
-        'createProduct'             | 'manager' || 'does not require'
-        'createProduct'             | 'invoice' || 'does not require'
-        'createProductFromTemplate' | 'admin'   || 'requires'
-        'createProductFromTemplate' | 'manager' || 'requires'
-        'createProductFromTemplate' | 'invoice' || 'does not require'
+        controller                  | role        || requires
+        // Whole-controller superuser gate for the scaffolded DocumentTypeController (H-27):
+        // no action name -- including ones nobody has written yet -- escapes it.
+        'documentType'              | 'superuser' || 'requires'
+        'admin'                     | 'admin'     || 'requires'
+        'admin'                     | 'manager'   || 'does not require'
+        'admin'                     | 'invoice'   || 'does not require'
+        'createProduct'             | 'admin'     || 'requires'
+        'createProduct'             | 'manager'   || 'does not require'
+        'createProduct'             | 'invoice'   || 'does not require'
+        'createProductFromTemplate' | 'admin'     || 'requires'
+        'createProductFromTemplate' | 'manager'   || 'requires'
+        'createProductFromTemplate' | 'invoice'   || 'does not require'
     }
 }
