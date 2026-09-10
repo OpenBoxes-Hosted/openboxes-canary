@@ -649,14 +649,19 @@ class ProductController {
                     }
                     // A second upload in this session replaces the first; delete and replace under
                     // one lock so two concurrent Phase-1 uploads cannot orphan a file between them.
+                    // The file is read here too, still inside the lock: reading it outside would let
+                    // a concurrent Phase-1 upload in this same session delete it between the swap and
+                    // the read (G1).
+                    String fileEncoding
+                    def csv
                     synchronized (session) {
                         uploadService.deleteLocalFile(session.localFile as File)
                         session.localFile = localFile
+                        //Detect CSV encoding
+                        fileEncoding = CSVUtils.detectCsvCharset(localFile)
+                        // Get CSV content in UTF-8 encoding
+                        csv = localFile.getText(fileEncoding)
                     }
-                    //Detect CSV encoding
-                    String fileEncoding = CSVUtils.detectCsvCharset(localFile)
-                    // Get CSV content in UTF-8 encoding
-                    def csv = localFile.getText(fileEncoding)
 
                     columns = productService.getColumns(csv)
                     println "CSV " + csv

@@ -8,6 +8,7 @@ import spock.lang.Specification
 import java.nio.file.Files
 
 import org.pih.warehouse.core.UploadService
+import org.pih.warehouse.importer.CSVUtils
 import org.pih.warehouse.importer.ImportDataCommand
 
 /**
@@ -113,5 +114,32 @@ class ProductControllerUploadCsvPhase1Spec extends Specification implements Cont
 
         and: 'the existing error path ran exactly as before: caught, logged, surfaced as a command error'
         command.errors.hasErrors()
+    }
+
+    void "uploadCsv() reads the uploaded file's content while still holding the session lock"() {
+        given: 'a session with no previous upload'
+        secondFile.text = 'a,b\n1,2'
+        ImportDataCommand command = new ImportDataCommand(
+                importFile: new MockMultipartFile('importFile', 'products.csv', 'text/csv', 'a,b\n1,2'.bytes))
+
+        and: 'CSVUtils.detectCsvCharset is the read G1 moved inside the lock - stub it to record ' +
+                'whether the calling thread holds the session monitor at the moment it runs, which is ' +
+                'the only single-threaded, honest way to prove the read happens under the lock rather ' +
+                'than after it is released'
+        boolean detectedWhileLocked = false
+        GroovyMock(CSVUtils, global: true)
+        1 * CSVUtils.detectCsvCharset(secondFile) >> {
+            detectedWhileLocked = Thread.holdsLock(controller.session)
+            return 'UTF-8'
+        }
+
+        when:
+        controller.uploadCsv(command)
+
+        then:
+        1 * uploadService.createLocalFile('products.csv') >> secondFile
+
+        and: 'the read ran while the calling thread still held the session monitor'
+        detectedWhileLocked
     }
 }
