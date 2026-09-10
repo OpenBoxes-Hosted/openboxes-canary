@@ -19,6 +19,7 @@ import fr.opensagres.xdocreport.template.TemplateEngineKind
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata
 import grails.gorm.transactions.Transactional
 import groovy.text.Template
+import org.apache.commons.io.FilenameUtils
 import org.grails.gsp.GroovyPagesTemplateEngine
 import org.jxls.common.Context
 import org.jxls.util.JxlsHelper
@@ -93,7 +94,12 @@ class DocumentTemplateService {
 
     def renderOrderDocumentTemplate(Document documentTemplate, Order orderInstance, ConverterTypeTo targetDocumentType, OutputStream outputStream) {
         try {
-            Boolean isVelocityTemplate = documentTemplate.filename.contains(".vm") || documentTemplate.filename.contains(".vtl")
+            // Match the file's actual extension, case-insensitively. contains(".vm") is a substring
+            // test: it picks Velocity for "invoice.vm.docx" and Freemarker for "report.VM", so the
+            // engine that executes the uploaded template was decided by something other than what
+            // the file is.
+            String extension = FilenameUtils.getExtension(documentTemplate.filename)?.toLowerCase()
+            Boolean isVelocityTemplate = extension in ['vm', 'vtl']
 
             TemplateEngineKind templateEngineKind = isVelocityTemplate ?
                 TemplateEngineKind.Velocity : TemplateEngineKind.Freemarker
