@@ -15,6 +15,7 @@ import grails.gorm.transactions.Transactional
 import grails.validation.ValidationException
 import org.grails.web.json.JSONArray
 import org.grails.web.json.JSONObject
+import org.hibernate.Hibernate
 import org.hibernate.ObjectNotFoundException
 import org.hibernate.SessionFactory
 import org.hibernate.criterion.Criterion
@@ -106,13 +107,31 @@ class GenericApiService {
         return domainObject
     }
 
+    /**
+     * Loads an object a write is about to act on, and refuses it unless it is of exactly the
+     * requested class. Domain classes are polymorphic — User extends Person, so
+     * Person.get(id) returns the user — and the API binds whatever the request body
+     * contains, so without this a write addressed to one resource could reach an object of
+     * another. Reads stay polymorphic; only the write paths use this.
+     */
+    private Object getObjectForWrite(String resourceName, String id) {
+        Class domainClass = getDomainClass(resourceName)
+        Object domainObject = getObject(resourceName, id)
+        if (Hibernate.getClass(domainObject) != domainClass) {
+            // Answer exactly as the unknown-identifier path does: the response must not
+            // disclose that the object exists as some other kind of resource.
+            throw new ObjectNotFoundException(id, domainClass.simpleName)
+        }
+        return domainObject
+    }
+
     Object createObject(String resourceName, JSONObject jsonObject) {
         log.debug "Create object " + jsonObject.class + ": " + jsonObject
         def domainClass = getDomainClass(resourceName)
 
         def domainObject
         if (jsonObject.id) {
-            domainObject = getObject(resourceName, jsonObject.id)
+            domainObject = getObjectForWrite(resourceName, jsonObject.id)
         } else {
             domainObject = domainClass.newInstance()
         }
@@ -134,7 +153,7 @@ class GenericApiService {
 
     Object updateObject(String resourceName, String id, JSONObject jsonObject) {
         log.debug "Update " + jsonObject
-        def domainObject = getObject(resourceName, id)
+        def domainObject = getObjectForWrite(resourceName, id)
         domainObject.properties = jsonObject
         if (domainObject.hasErrors() || !domainObject.save()) {
             throw new ValidationException("Cannot create product due to validation errors", domainObject.errors)
@@ -144,7 +163,7 @@ class GenericApiService {
 
     boolean deleteObject(String resourceName, String id) {
         log.debug "Delete " + id
-        def domainObject = getObject(resourceName, id)
+        def domainObject = getObjectForWrite(resourceName, id)
         return domainObject.delete()
     }
 
