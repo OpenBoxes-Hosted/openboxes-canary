@@ -2,6 +2,7 @@ package org.pih.warehouse.core
 
 import grails.testing.services.ServiceUnitTest
 import org.apache.commons.io.FilenameUtils
+import org.springframework.mock.web.MockHttpServletRequest
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
@@ -116,6 +117,17 @@ class UploadServiceSpec extends Specification implements ServiceUnitTest<UploadS
 
         where:
         filename << ['products.xlsx', 'a' * 199]
+    }
+
+    void "uploadMutex returns the same object for repeated calls against the same session"() {
+        given: 'the container session mutex two-phase upload flows must lock on instead of the ' +
+                'Grails session property (I1) - WebUtils.getSessionMutex(session) is the ' +
+                'SESSION_MUTEX_ATTRIBUTE if a listener set one, else the HttpSession itself, which the ' +
+                'servlet container keeps as one facade per session'
+        MockHttpServletRequest request = new MockHttpServletRequest()
+
+        expect: 'two calls against the same underlying session resolve to the identical object'
+        UploadService.uploadMutex(request).is(UploadService.uploadMutex(request))
     }
 
     void "createLocalFile gives two uploads of the same name two different files"() {

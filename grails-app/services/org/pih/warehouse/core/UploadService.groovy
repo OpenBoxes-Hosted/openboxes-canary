@@ -11,7 +11,9 @@ package org.pih.warehouse.core
 
 import grails.core.GrailsApplication
 import org.apache.commons.io.FilenameUtils
+import org.springframework.web.util.WebUtils
 
+import javax.servlet.http.HttpServletRequest
 import java.nio.file.Files
 
 class UploadService {
@@ -87,6 +89,24 @@ class UploadService {
         String stem = hasKeepableExtension ? name.substring(0, dotIndex) : name
         int maxStemLength = MAX_SAFE_FILENAME_LENGTH - extension.length()
         return stem.substring(0, Math.min(stem.length(), maxStemLength)) + extension
+    }
+
+    /**
+     * The mutex the two-phase upload flows (Phase 1's replace-and-swap, Phase 2's read) must lock
+     * on to serialise concurrent access to the SAME upload within one HTTP session (I1).
+     *
+     * Grails' own `session` property is not safe to synchronize on: GrailsWebRequest#getSession()
+     * lazily builds a NEW GrailsHttpSession(request) on every call and caches it on the
+     * GrailsWebRequest - itself a per-request object - and GrailsHttpSession overrides neither
+     * equals() nor hashCode(). Two concurrent requests in the same HTTP session therefore
+     * synchronize on two different objects and never actually exclude each other; the lock does
+     * nothing. WebUtils.getSessionMutex() instead resolves the container-scoped mutex - the
+     * SESSION_MUTEX_ATTRIBUTE if a HttpSessionMutexListener set one, otherwise the container's own
+     * HttpSession object, which the servlet container keeps as one facade per session - so every
+     * request in the same session locks on the same object.
+     */
+    static Object uploadMutex(HttpServletRequest request) {
+        return WebUtils.getSessionMutex(request.getSession())
     }
 
     /**

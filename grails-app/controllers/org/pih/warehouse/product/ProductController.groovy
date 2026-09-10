@@ -651,10 +651,13 @@ class ProductController {
                     // one lock so two concurrent Phase-1 uploads cannot orphan a file between them.
                     // The file is read here too, still inside the lock: reading it outside would let
                     // a concurrent Phase-1 upload in this same session delete it between the swap and
-                    // the read (G1).
+                    // the read (G1). The lock is the container session's mutex, not Grails' `session`
+                    // property (I1): Grails rebuilds its session wrapper per request with no
+                    // equals()/hashCode() override, so two concurrent requests in the same HTTP
+                    // session would otherwise synchronize on two different objects.
                     String fileEncoding
                     def csv
-                    synchronized (session) {
+                    synchronized (uploadService.uploadMutex(request)) {
                         uploadService.deleteLocalFile(session.localFile as File)
                         session.localFile = localFile
                         //Detect CSV encoding
@@ -707,8 +710,15 @@ class ProductController {
 
         if (params.importNow && session.localFile) {
             try {
-                String fileEncoding = CSVUtils.detectCsvCharset(session.localFile)
-                def csv = session.localFile.getText(fileEncoding)
+                // The read is under the container session's mutex (I1), not Grails' `session`
+                // property: a concurrent Phase-1 upload in this same session could otherwise delete
+                // this file between the check above and the read below.
+                String fileEncoding
+                def csv
+                synchronized (uploadService.uploadMutex(request)) {
+                    fileEncoding = CSVUtils.detectCsvCharset(session.localFile)
+                    csv = session.localFile.getText(fileEncoding)
+                }
 
                 // Get columns
                 columns = productService.getColumns(csv)

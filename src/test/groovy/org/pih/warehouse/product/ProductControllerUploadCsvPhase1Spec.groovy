@@ -116,20 +116,23 @@ class ProductControllerUploadCsvPhase1Spec extends Specification implements Cont
         command.errors.hasErrors()
     }
 
-    void "uploadCsv() reads the uploaded file's content while still holding the session lock"() {
+    void "uploadCsv() reads the uploaded file's content while still holding the container session mutex"() {
         given: 'a session with no previous upload'
         secondFile.text = 'a,b\n1,2'
         ImportDataCommand command = new ImportDataCommand(
                 importFile: new MockMultipartFile('importFile', 'products.csv', 'text/csv', 'a,b\n1,2'.bytes))
 
-        and: 'CSVUtils.detectCsvCharset is the read G1 moved inside the lock - stub it to record ' +
-                'whether the calling thread holds the session monitor at the moment it runs, which is ' +
-                'the only single-threaded, honest way to prove the read happens under the lock rather ' +
-                'than after it is released'
+        and: 'CSVUtils.detectCsvCharset is the read this fix runs under the mutex - stub it to record ' +
+                'whether the calling thread holds UploadService.uploadMutex(request) at the moment it ' +
+                'runs, which is the only single-threaded, honest way to prove the read happens under ' +
+                'the lock rather than after it is released. Asserting against the mutex specifically ' +
+                '(not controller.session) pins I1: Grails\' session property is not safe to ' +
+                'synchronize on in the running app, even though this test harness happens to resolve ' +
+                'both to the same underlying MockHttpSession object.'
         boolean detectedWhileLocked = false
         GroovyMock(CSVUtils, global: true)
         1 * CSVUtils.detectCsvCharset(secondFile) >> {
-            detectedWhileLocked = Thread.holdsLock(controller.session)
+            detectedWhileLocked = Thread.holdsLock(UploadService.uploadMutex(controller.request))
             return 'UTF-8'
         }
 
@@ -139,7 +142,10 @@ class ProductControllerUploadCsvPhase1Spec extends Specification implements Cont
         then:
         1 * uploadService.createLocalFile('products.csv') >> secondFile
 
-        and: 'the read ran while the calling thread still held the session monitor'
+        and: 'the read ran while the calling thread still held the mutex'
         detectedWhileLocked
+
+        and: 'and the mutex is released once the action returns'
+        !Thread.holdsLock(UploadService.uploadMutex(controller.request))
     }
 }
