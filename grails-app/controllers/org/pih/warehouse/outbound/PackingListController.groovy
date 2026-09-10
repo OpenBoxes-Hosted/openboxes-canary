@@ -14,8 +14,14 @@ class PackingListController {
     def upload(ImportDataCommand command) {
         MultipartFile importFile = command.importFile
         File localFile = uploadService.createLocalFile(importFile.originalFilename)
-        importFile.transferTo(localFile)
-        DataImporter packingListImporter = new PackingListExcelImporter(localFile.absolutePath)
+        DataImporter packingListImporter
+        try {
+            importFile.transferTo(localFile)
+            // the importer reads the whole workbook into memory, so the file is finished with here
+            packingListImporter = new PackingListExcelImporter(localFile.absolutePath)
+        } finally {
+            uploadService.deleteLocalFile(localFile)
+        }
 
         render([data: packingListImporter.data] as JSON)
     }

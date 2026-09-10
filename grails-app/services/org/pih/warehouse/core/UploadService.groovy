@@ -11,7 +11,9 @@ package org.pih.warehouse.core
 
 import grails.core.GrailsApplication
 import org.apache.commons.io.FilenameUtils
+import org.springframework.web.util.WebUtils
 
+import javax.servlet.http.HttpServletRequest
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
@@ -127,6 +129,46 @@ class UploadService {
             usedBytes += codePointBytes
         }
         return truncatedStem.toString() + extension
+    }
+
+    /**
+     * The mutex the two-phase upload flows (Phase 1's replace-and-swap, Phase 2's read) must lock
+     * on to serialise concurrent access to the SAME upload within one HTTP session (I1).
+     *
+     * Grails' own `session` property is not safe to synchronize on: GrailsWebRequest#getSession()
+     * lazily builds a NEW GrailsHttpSession(request) on every call and caches it on the
+     * GrailsWebRequest - itself a per-request object - and GrailsHttpSession overrides neither
+     * equals() nor hashCode(). Two concurrent requests in the same HTTP session therefore
+     * synchronize on two different objects and never actually exclude each other; the lock does
+     * nothing.
+     *
+     * WebUtils.getSessionMutex() resolves to Spring's own SESSION_MUTEX_ATTRIBUTE - set on every
+     * session at creation by the HttpSessionMutexListener registered in
+     * grails-app/conf/spring/resources.groovy - which is a guaranteed one-object-per-session mutex
+     * regardless of servlet container. Without that listener, getSessionMutex() falls back to the
+     * HttpSession object itself; that fallback is WebUtils' documented behaviour, not this method's
+     * guarantee, and relies on a container implementation detail (a stable per-session HttpSession
+     * facade) that the Servlet spec does not require - which is exactly why the listener is
+     * registered rather than relied on to be unnecessary.
+     */
+    static Object uploadMutex(HttpServletRequest request) {
+        return WebUtils.getSessionMutex(request.getSession())
+    }
+
+    /**
+     * Delete a file created by {@link #createLocalFile}. Uploads are parsed into memory and then
+     * finished with, so keeping them leaves every uploaded spreadsheet on the instance for the life
+     * of the process. Null-tolerant and non-throwing: callers use this on their unwind path.
+     */
+    boolean deleteLocalFile(File localFile) {
+        if (!localFile) {
+            return false
+        }
+        boolean deleted = localFile.delete()
+        if (!deleted && localFile.exists()) {
+            log.warn("Unable to delete uploaded file ${localFile.absolutePath}")
+        }
+        return deleted
     }
 
     File findOrCreateUploadsDirectory() {
