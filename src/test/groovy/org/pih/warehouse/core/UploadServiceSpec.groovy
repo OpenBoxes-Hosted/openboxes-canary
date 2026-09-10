@@ -6,6 +6,8 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import java.nio.charset.StandardCharsets
+
 /**
  * Grails 3.3 resolves multipart requests with StandardServletMultipartResolver, whose
  * MultipartFile.originalFilename is the Content-Disposition filename verbatim - it does no
@@ -116,6 +118,50 @@ class UploadServiceSpec extends Specification implements ServiceUnitTest<UploadS
 
         where:
         filename << ['products.xlsx', 'a' * 199]
+    }
+
+    void "toSafeFilename caps a 200-code-point CJK name to 200 UTF-8 bytes, not 200 UTF-16 chars"() {
+        given: 'each CJK character here is one UTF-16 char and one code point, but THREE UTF-8 bytes - ' +
+                'a 200-character (char-count) cap lets 200 of these through at 600+ bytes, which is ' +
+                'exactly the "File name too long" failure G3 exists to prevent (Important #1)'
+        String cjkName = ('中' * 200) + '.xlsx'
+
+        when:
+        String result = UploadService.toSafeFilename(cjkName)
+
+        then:
+        result.getBytes(StandardCharsets.UTF_8).length <= 200
+        result.endsWith('.xlsx')
+
+        and: 'no lone surrogate or split multi-byte sequence: encoding then decoding is lossless'
+        new String(result.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8) == result
+    }
+
+    void "toSafeFilename leaves a 199-byte ASCII name unchanged"() {
+        given:
+        String name199 = 'x' * 199
+
+        expect:
+        UploadService.toSafeFilename(name199) == name199
+    }
+
+    void "toSafeFilename caps an emoji-heavy name to 200 UTF-8 bytes without splitting a surrogate pair"() {
+        given: 'each emoji is ONE code point but TWO UTF-16 chars (a surrogate pair) and FOUR UTF-8 ' +
+                'bytes - truncating by raw char count (or by raw byte count without code-point ' +
+                'awareness) can cut a pair in half and leave a lone surrogate in the file name'
+        String emoji = new String(Character.toChars(0x1F600))
+        String emojiName = (emoji * 60) + '.png'
+
+        when:
+        String result = UploadService.toSafeFilename(emojiName)
+
+        then:
+        result.getBytes(StandardCharsets.UTF_8).length <= 200
+        result.endsWith('.png')
+
+        and: 'every surrogate pair survived intact: a lone surrogate would be replaced (U+FFFD) by ' +
+                'the encoder, so a lossy round-trip would prove one was produced'
+        new String(result.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8) == result
     }
 
     void "createLocalFile gives two uploads of the same name two different files"() {
