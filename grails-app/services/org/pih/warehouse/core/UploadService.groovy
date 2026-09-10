@@ -140,10 +140,16 @@ class UploadService {
      * GrailsWebRequest - itself a per-request object - and GrailsHttpSession overrides neither
      * equals() nor hashCode(). Two concurrent requests in the same HTTP session therefore
      * synchronize on two different objects and never actually exclude each other; the lock does
-     * nothing. WebUtils.getSessionMutex() instead resolves the container-scoped mutex - the
-     * SESSION_MUTEX_ATTRIBUTE if a HttpSessionMutexListener set one, otherwise the container's own
-     * HttpSession object, which the servlet container keeps as one facade per session - so every
-     * request in the same session locks on the same object.
+     * nothing.
+     *
+     * WebUtils.getSessionMutex() resolves to Spring's own SESSION_MUTEX_ATTRIBUTE - set on every
+     * session at creation by the HttpSessionMutexListener registered in
+     * grails-app/conf/spring/resources.groovy - which is a guaranteed one-object-per-session mutex
+     * regardless of servlet container. Without that listener, getSessionMutex() falls back to the
+     * HttpSession object itself; that fallback is WebUtils' documented behaviour, not this method's
+     * guarantee, and relies on a container implementation detail (a stable per-session HttpSession
+     * facade) that the Servlet spec does not require - which is exactly why the listener is
+     * registered rather than relied on to be unnecessary.
      */
     static Object uploadMutex(HttpServletRequest request) {
         return WebUtils.getSessionMutex(request.getSession())

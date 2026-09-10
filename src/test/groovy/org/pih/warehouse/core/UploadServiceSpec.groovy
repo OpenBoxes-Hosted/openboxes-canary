@@ -3,10 +3,14 @@ package org.pih.warehouse.core
 import grails.testing.services.ServiceUnitTest
 import org.apache.commons.io.FilenameUtils
 import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpSession
+import org.springframework.web.util.HttpSessionMutexListener
+import org.springframework.web.util.WebUtils
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import javax.servlet.http.HttpSessionEvent
 import java.nio.charset.StandardCharsets
 
 /**
@@ -174,6 +178,21 @@ class UploadServiceSpec extends Specification implements ServiceUnitTest<UploadS
 
         expect: 'two calls against the same underlying session resolve to the identical object'
         UploadService.uploadMutex(request).is(UploadService.uploadMutex(request))
+    }
+
+    void "the registered HttpSessionMutexListener makes WebUtils.getSessionMutex return its own attribute, not the raw session (I1/Minor #2)"() {
+        given: 'MockHttpSession does not dispatch HttpSessionListener callbacks itself - simulate ' +
+                'what the servlet container does at session creation by invoking the SAME listener ' +
+                'class registered in grails-app/conf/spring/resources.groovy directly. This proves ' +
+                'the listener class does what UploadService.uploadMutex now depends on; it does not ' +
+                'prove Grails/Spring actually wires that bean into a running application (that would ' +
+                'need a full ApplicationContext boot) - stated as a limit, not silently assumed'
+        MockHttpSession session = new MockHttpSession()
+        new HttpSessionMutexListener().sessionCreated(new HttpSessionEvent(session))
+
+        expect: 'the mutex is the attribute the listener set - the fallback (the session itself) never runs'
+        WebUtils.getSessionMutex(session) == session.getAttribute(WebUtils.SESSION_MUTEX_ATTRIBUTE)
+        !WebUtils.getSessionMutex(session).is(session)
     }
 
     void "createLocalFile gives two uploads of the same name two different files"() {
