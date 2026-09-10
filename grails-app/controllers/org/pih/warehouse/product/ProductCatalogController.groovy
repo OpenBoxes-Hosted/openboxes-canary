@@ -171,10 +171,11 @@ class ProductCatalogController {
 
             // Step 1: Upload file
             if (uploadFile && !uploadFile?.empty) {
+                def localFile
                 try {
 
                     // Upload file
-                    def localFile = uploadService.createLocalFile(uploadFile.originalFilename)
+                    localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                     uploadFile?.transferTo(localFile)
 
                     // Get CSV content
@@ -195,6 +196,8 @@ class ProductCatalogController {
                 } catch (Exception e) {
                     log.error("Exception occurred while uploading product import CSV " + e.message, e)
                     command.errors.rejectValue("importFile", e.message)
+                } finally {
+                    uploadService.deleteLocalFile(localFile)
                 }
             } else {
                 log.warn("Cannot import product catalog items as file was empty")

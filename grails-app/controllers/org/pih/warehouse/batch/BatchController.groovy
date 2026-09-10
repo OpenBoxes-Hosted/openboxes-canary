@@ -56,7 +56,11 @@ class BatchController {
             def uploadFile = request.getFile('xlsFile')
             if (!uploadFile.empty) {
                 def localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                uploadFile.transferTo(localFile)
+                try {
+                    uploadFile.transferTo(localFile)
+                } finally {
+                    uploadService.deleteLocalFile(localFile)
+                }
             }
         }
     }
@@ -113,8 +117,26 @@ class BatchController {
                 if (!uploadFile?.empty) {
                     try {
                         localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                        uploadFile.transferTo(localFile)
-                        session.localFile = localFile
+                        try {
+                            uploadFile.transferTo(localFile)
+                        } catch (Exception e) {
+                            // The file was just created but never filled in; without this it is
+                            // orphaned exactly like the pre-fix bug this task exists to close.
+                            uploadService.deleteLocalFile(localFile)
+                            throw e
+                        }
+                        // Two uploads in one session race here: without the lock, both can read the
+                        // same previous file, both delete it, and the loser's own file is orphaned
+                        // with nothing pointing at it. A second upload replaces the first, so the
+                        // first is deleted inside the same critical section that replaces it. The
+                        // lock is the container session's mutex, not Grails' `session` property (I1):
+                        // Grails rebuilds its session wrapper per request with no equals()/hashCode()
+                        // override, so two concurrent requests in the same HTTP session would
+                        // otherwise synchronize on two different objects.
+                        synchronized (uploadService.uploadMutex(request)) {
+                            uploadService.deleteLocalFile(session.localFile as File)
+                            session.localFile = localFile
+                        }
 
                     } catch (Exception e) {
                         log.error("Error uploading file" + e.message, e)
@@ -132,7 +154,12 @@ class BatchController {
                 command.filename = localFile.getAbsolutePath()
                 command.location = Location.get(session.warehouse.id)
                 try {
-                    dataImporter = createExcelImporter(command)
+                    // Reading the file's bytes is under the container session's mutex (I1): a
+                    // concurrent Phase-1 upload in this same session could otherwise delete this
+                    // file mid-read.
+                    synchronized (uploadService.uploadMutex(request)) {
+                        dataImporter = createExcelImporter(command)
+                    }
                 }
                 catch (OfficeXmlFileException e) {
                     log.error("Error with import file " + e.message, e)
@@ -169,6 +196,7 @@ class BatchController {
                     if (!command.hasErrors()) {
                         flash.message = "${warehouse.message(code: 'inventoryItem.importSuccess.message', args: [localFile.getAbsolutePath()])}"
                         // Remove once import has been completed
+                        uploadService.deleteLocalFile(localFile)
                         session.removeAttribute("localFile")
                         redirect(action: "importData")
                         return

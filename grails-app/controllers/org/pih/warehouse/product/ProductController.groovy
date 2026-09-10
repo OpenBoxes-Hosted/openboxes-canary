@@ -639,12 +639,32 @@ class ProductController {
 
                     // Upload file
                     localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                    uploadFile?.transferTo(localFile)
-                    session.localFile = localFile
-                    //Detect CSV encoding
-                    String fileEncoding = CSVUtils.detectCsvCharset(localFile)
-                    // Get CSV content in UTF-8 encoding
-                    def csv = localFile.getText(fileEncoding)
+                    try {
+                        uploadFile?.transferTo(localFile)
+                    } catch (Exception e) {
+                        // The file was just created but never filled in; without this it is orphaned
+                        // exactly like the pre-fix bug this task exists to close.
+                        uploadService.deleteLocalFile(localFile)
+                        throw e
+                    }
+                    // A second upload in this session replaces the first; delete and replace under
+                    // one lock so two concurrent Phase-1 uploads cannot orphan a file between them.
+                    // The file is read here too, still inside the lock: reading it outside would let
+                    // a concurrent Phase-1 upload in this same session delete it between the swap and
+                    // the read (G1). The lock is the container session's mutex, not Grails' `session`
+                    // property (I1): Grails rebuilds its session wrapper per request with no
+                    // equals()/hashCode() override, so two concurrent requests in the same HTTP
+                    // session would otherwise synchronize on two different objects.
+                    String fileEncoding
+                    def csv
+                    synchronized (uploadService.uploadMutex(request)) {
+                        uploadService.deleteLocalFile(session.localFile as File)
+                        session.localFile = localFile
+                        //Detect CSV encoding
+                        fileEncoding = CSVUtils.detectCsvCharset(localFile)
+                        // Get CSV content in UTF-8 encoding
+                        csv = localFile.getText(fileEncoding)
+                    }
 
                     columns = productService.getColumns(csv)
                     println "CSV " + csv
@@ -690,8 +710,15 @@ class ProductController {
 
         if (params.importNow && session.localFile) {
             try {
-                String fileEncoding = CSVUtils.detectCsvCharset(session.localFile)
-                def csv = session.localFile.getText(fileEncoding)
+                // The read is under the container session's mutex (I1), not Grails' `session`
+                // property: a concurrent Phase-1 upload in this same session could otherwise delete
+                // this file between the check above and the read below.
+                String fileEncoding
+                def csv
+                synchronized (uploadService.uploadMutex(request)) {
+                    fileEncoding = CSVUtils.detectCsvCharset(session.localFile)
+                    csv = session.localFile.getText(fileEncoding)
+                }
 
                 // Get columns
                 columns = productService.getColumns(csv)
@@ -703,6 +730,9 @@ class ProductController {
                 command.products = productService.validateProducts(csv, createMissingCategories)
 
                 productService.importProducts(command.products, tags)
+                // the import is done; the uploaded file has nothing left to give
+                uploadService.deleteLocalFile(session.localFile as File)
+                session.removeAttribute("localFile")
                 flash.message = "All ${command?.products?.size()} product(s) were imported successfully."
                 redirect(controller: "product", action: "importAsCsv", params: [tag: tags[0]])
             } catch (ValidationException e) {
@@ -1053,12 +1083,20 @@ class ProductController {
                 localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                 uploadFile.transferTo(localFile)
             } catch (Exception e) {
+                // The file may have been created but never filled in; without this it is orphaned
+                // exactly like the pre-fix bug this task exists to close.
+                uploadService.deleteLocalFile(localFile)
                 flash.error = "Unable to upload file due to exception: " + e.message
                 redirect(controller: 'product', action: 'edit', id: params['product.id'])
                 return
             }
 
-            def excelImporter = new ProductSynonymExcelImporter(localFile.absolutePath)
+            def excelImporter
+            try {
+                excelImporter = new ProductSynonymExcelImporter(localFile.absolutePath)
+            } finally {
+                uploadService.deleteLocalFile(localFile)
+            }
             command.data = excelImporter.data
 
             command.errors = null
