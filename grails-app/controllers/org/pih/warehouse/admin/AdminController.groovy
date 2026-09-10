@@ -227,7 +227,11 @@ class AdminController {
                 mailProperties          : ConfigMasker.mask(grailsApplication.config.grails.mail),
                 externalConfigProperties: externalConfigProperties,
                 externalConfigLocations : externalConfigLocations,
-                systemProperties        : ConfigMasker.mask(System.properties).sort()
+                // System.properties is a live, unsynchronized-for-iteration Hashtable; a
+                // concurrent System.setProperty from another thread while mask() iterates it can
+                // throw ConcurrentModificationException. Hashtable.clone() is synchronized, so
+                // masking a snapshot avoids that without changing what is shown.
+                systemProperties        : ConfigMasker.mask((Properties) System.properties.clone()).sort()
         ]
     }
 
