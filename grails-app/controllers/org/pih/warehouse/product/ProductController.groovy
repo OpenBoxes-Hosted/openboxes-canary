@@ -1068,6 +1068,9 @@ class ProductController {
                 localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                 uploadFile.transferTo(localFile)
             } catch (Exception e) {
+                // The file may have been created but never filled in; without this it is orphaned
+                // exactly like the pre-fix bug this task exists to close.
+                uploadService.deleteLocalFile(localFile)
                 flash.error = "Unable to upload file due to exception: " + e.message
                 redirect(controller: 'product', action: 'edit', id: params['product.id'])
                 return
