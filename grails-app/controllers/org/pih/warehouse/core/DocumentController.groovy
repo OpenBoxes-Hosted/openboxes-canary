@@ -562,6 +562,10 @@ class DocumentController {
                 redirect(controller: 'invoice', action: 'show', id: command.invoiceId)
             }
         } else {
+            // The addDocument views render the owning entity's errors, and only field-level ones, so a
+            // rejection recorded as a global error on the document would redirect silently. Surface it
+            // the way uploadDocument does.
+            flash.message = "${warehouse.message(code: 'document.cannotSave.message', args: [documentInstance.errors])}"
             if (command.shipmentId) {
                 redirect(controller: "shipment", action: "addDocument", id: command.shipmentId,
                         model: [shipmentInstance: Shipment.get(command.shipmentId), documentInstance: documentInstance])
@@ -676,7 +680,7 @@ class DocumentController {
         boolean currentIsTemplate =
                 documentInstance?.documentType && templateCodes.contains(documentInstance.documentType.documentCode)
         if (incomingIsTemplate || currentIsTemplate) {
-            documentInstance.errors.reject("documentType", "Template types are not allowed for this document upload")
+            documentInstance?.errors?.reject("documentType", "Template types are not allowed for this document upload")
             return true
         }
         return false

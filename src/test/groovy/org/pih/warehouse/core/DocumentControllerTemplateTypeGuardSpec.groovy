@@ -119,6 +119,30 @@ class DocumentControllerTemplateTypeGuardSpec extends Specification
         documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE]
     }
 
+    /**
+     * A rejected write applies nothing, which from the browser looks exactly like a write that
+     * worked: the action redirects to the owning entity's addDocument view, and that view renders
+     * the OWNING ENTITY's errors plus field-level hasErrors, never the document's global ones. The
+     * refusal is recorded as a global error, so without a flash message the user is told nothing.
+     */
+    void "saveDocument should tell the user why a rejected write did nothing"() {
+        given:
+        DocumentType templateType = createDocumentType(DocumentCode.GSP_TEMPLATE)
+        Document template = createTemplate(templateType)
+        controller.params.documentId = template.id
+
+        when: 'a rename is attempted on a template document'
+        controller.saveDocument(new DocumentCommand(name: "renamed", documentNumber: "DOC-1"))
+
+        then: 'the refusal reaches the user rather than redirecting silently'
+        controller.flash.message
+        controller.flash.message.toString() == 'document.cannotSave.message'
+
+        and: 'and nothing was applied'
+        template.name == "order:print"
+        template.documentNumber == null
+    }
+
     void "saveDocument should still replace the contents of an ordinary document"() {
         given:
         DocumentType attachmentType = createDocumentType(DocumentCode.SHIPPING_DOCUMENT)
