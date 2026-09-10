@@ -96,6 +96,28 @@ class UploadServiceSpec extends Specification implements ServiceUnitTest<UploadS
                      '..%2f..%2fetc%2fpasswd']
     }
 
+    void "toSafeFilename caps an oversized name to 200 characters while preserving the extension"() {
+        given: 'createLocalFile prepends its own ~19-character random prefix on top of whatever ' +
+                'toSafeFilename returns, so an unbounded name can push the final on-disk name past ' +
+                'the 255-byte filesystem limit that upstream\'s direct new File(dir, name) stayed under'
+        String oversizedName = ('a' * 250) + '.xlsx'
+
+        when:
+        String result = UploadService.toSafeFilename(oversizedName)
+
+        then:
+        result.length() <= 200
+        result.endsWith('.xlsx')
+    }
+
+    void "toSafeFilename leaves '#filename' unchanged when it is already at or under 200 characters"() {
+        expect:
+        UploadService.toSafeFilename(filename) == filename
+
+        where:
+        filename << ['products.xlsx', 'a' * 199]
+    }
+
     void "createLocalFile gives two uploads of the same name two different files"() {
         when:
         File first = service.createLocalFile('products.xlsx')
