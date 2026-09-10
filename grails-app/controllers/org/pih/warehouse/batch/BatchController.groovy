@@ -118,7 +118,14 @@ class BatchController {
                     try {
                         localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                         uploadFile.transferTo(localFile)
-                        session.localFile = localFile
+                        // Two uploads in one session race here: without the lock, both can read the
+                        // same previous file, both delete it, and the loser's own file is orphaned
+                        // with nothing pointing at it. A second upload replaces the first, so the
+                        // first is deleted inside the same critical section that replaces it.
+                        synchronized (session) {
+                            uploadService.deleteLocalFile(session.localFile as File)
+                            session.localFile = localFile
+                        }
 
                     } catch (Exception e) {
                         log.error("Error uploading file" + e.message, e)
@@ -173,6 +180,7 @@ class BatchController {
                     if (!command.hasErrors()) {
                         flash.message = "${warehouse.message(code: 'inventoryItem.importSuccess.message', args: [localFile.getAbsolutePath()])}"
                         // Remove once import has been completed
+                        uploadService.deleteLocalFile(localFile)
                         session.removeAttribute("localFile")
                         redirect(action: "importData")
                         return

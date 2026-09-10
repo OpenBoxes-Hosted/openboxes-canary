@@ -640,7 +640,12 @@ class ProductController {
                     // Upload file
                     localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                     uploadFile?.transferTo(localFile)
-                    session.localFile = localFile
+                    // A second upload in this session replaces the first; delete and replace under
+                    // one lock so two concurrent Phase-1 uploads cannot orphan a file between them.
+                    synchronized (session) {
+                        uploadService.deleteLocalFile(session.localFile as File)
+                        session.localFile = localFile
+                    }
                     //Detect CSV encoding
                     String fileEncoding = CSVUtils.detectCsvCharset(localFile)
                     // Get CSV content in UTF-8 encoding
@@ -703,6 +708,9 @@ class ProductController {
                 command.products = productService.validateProducts(csv, createMissingCategories)
 
                 productService.importProducts(command.products, tags)
+                // the import is done; the uploaded file has nothing left to give
+                uploadService.deleteLocalFile(session.localFile as File)
+                session.removeAttribute("localFile")
                 flash.message = "All ${command?.products?.size()} product(s) were imported successfully."
                 redirect(controller: "product", action: "importAsCsv", params: [tag: tags[0]])
             } catch (ValidationException e) {
