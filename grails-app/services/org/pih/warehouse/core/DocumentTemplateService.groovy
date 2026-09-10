@@ -42,7 +42,23 @@ class DocumentTemplateService {
     RequisitionService requisitionService
     UserService userService
 
+    /**
+     * Find the Groovy Server Page template registered under the given name.
+     *
+     * The lookup is restricted to documents of type GSP_TEMPLATE: the contents of
+     * one of these documents are compiled and executed as Groovy, so an ordinary
+     * uploaded file must never be selected by name alone.
+     */
+    Document findGroovyServerPageTemplate(String name) {
+        List<DocumentType> documentTypes = DocumentType.findAllByDocumentCode(DocumentCode.GSP_TEMPLATE)
+        return documentTypes ? Document.findByNameAndDocumentTypeInList(name, documentTypes) : null
+    }
+
     def renderGroovyServerPageDocumentTemplate(Document documentTemplate, Map model) {
+        if (documentTemplate?.documentType?.documentCode != DocumentCode.GSP_TEMPLATE) {
+            throw new IllegalArgumentException(
+                "Only documents with document code ${DocumentCode.GSP_TEMPLATE} can be rendered as Groovy Server Pages")
+        }
         StringWriter output = new StringWriter()
         String templateContents = new String(documentTemplate.fileContents)
         Template template = groovyPagesTemplateEngine.createTemplate(templateContents, documentTemplate.name)
@@ -83,7 +99,8 @@ class DocumentTemplateService {
                 TemplateEngineKind.Velocity : TemplateEngineKind.Freemarker
 
             InputStream inputStream = new ByteArrayInputStream(documentTemplate.fileContents)
-            IXDocReport report = XDocReportRegistry.getRegistry().loadReport(inputStream, templateEngineKind);
+            IXDocReport report = XDocReportRegistry.getRegistry()
+                .loadReport(inputStream, HardenedTemplateEngines.hardened(templateEngineKind));
 
             // FIXME Need a better way to handle this generically (consider using config + dataService)
             IContext context = orderInstance ? createOrderContext(report, orderInstance) : report.createContext();
@@ -277,7 +294,8 @@ class DocumentTemplateService {
     def renderRequisitionDocumentTemplate(Document documentTemplate, Requisition requisitionInstance, ConverterTypeTo targetDocumentType, OutputStream outputStream) {
         try {
             InputStream inputStream = new ByteArrayInputStream(documentTemplate.fileContents)
-            IXDocReport report = XDocReportRegistry.getRegistry().loadReport(inputStream, TemplateEngineKind.Freemarker)
+            IXDocReport report = XDocReportRegistry.getRegistry()
+                .loadReport(inputStream, HardenedTemplateEngines.hardened(TemplateEngineKind.Freemarker))
 
             IContext context = createRequisitionContext(report, requisitionInstance)
 
