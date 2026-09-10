@@ -416,6 +416,9 @@ class DocumentController {
         Document documentInstance
         if (params.id) {
             documentInstance = Document.get(params.id)
+            if (documentInstance?.documentType?.documentCode != DocumentCode.INVOICE_TEMPLATE) {
+                documentInstance = null
+            }
         } else {
             ShipmentWorkflow shipmentWorkflow = shipmentService.getShipmentWorkflow(shipmentInstance)
             documentInstance = shipmentWorkflow.documentTemplates?.find {it.documentType?.documentCode == DocumentCode.INVOICE_TEMPLATE}
@@ -480,6 +483,9 @@ class DocumentController {
                 throw new IllegalArgumentException("documentTemplate.id is required")
             }
             Document documentTemplate = Document.get(params?.documentTemplate?.id)
+            if (documentTemplate?.documentType?.documentCode != DocumentCode.REQUISITION_TEMPLATE) {
+                documentTemplate = null
+            }
             if (documentTemplate) {
                 try {
                     ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
