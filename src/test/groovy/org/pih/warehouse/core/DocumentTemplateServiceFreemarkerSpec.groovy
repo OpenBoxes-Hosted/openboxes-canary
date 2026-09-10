@@ -3,7 +3,6 @@ package org.pih.warehouse.core
 import fr.opensagres.xdocreport.template.TemplateEngineKind
 import grails.testing.gorm.DataTest
 import grails.testing.services.ServiceUnitTest
-import org.apache.commons.io.FilenameUtils
 import org.pih.warehouse.requisition.Requisition
 import spock.lang.Specification
 import spock.lang.Unroll
@@ -85,10 +84,14 @@ class DocumentTemplateServiceFreemarkerSpec extends Specification
     }
 
     /**
-     * The engine that executes an uploaded template is picked from its filename, so the rule that
-     * reads the filename decides which language the uploaded text is run as. The old
-     * filename.contains(".vm") was a case-sensitive substring test: "report.VM" went to Freemarker
-     * and "invoice.vm.docx" went to Velocity, which is why both are in the table.
+     * The engine that executes an uploaded template is picked from its filename, so that rule
+     * decides which language the uploaded text is run as.
+     *
+     * The marker is a name SEGMENT, not the extension: XDocReport loads a template by reading it
+     * as a zip, so every template it can load is a .docx or an .odt and the marker sits in front
+     * of that - "invoice.vm.docx". Selecting on the real extension would make Velocity unreachable
+     * (E14), which is why that row is here and expects Velocity. The old contains(".vm") already
+     * got the segment right; what it got wrong was case, so "report.VM.docx" went to Freemarker.
      */
     void "renderOrderDocumentTemplate picks #expectedKind for '#filename'"() {
         given:
@@ -102,19 +105,18 @@ class DocumentTemplateServiceFreemarkerSpec extends Specification
         then:
         1 * HardenedTemplateEngines.hardened(expectedKind) >> expectedKind
 
-        and: "the rule, spelled out, so a reader can see how each filename above is being read"
-        assert (FilenameUtils.getExtension(filename)?.toLowerCase() in ['vm', 'vtl']) ==
-            (expectedKind == TemplateEngineKind.Velocity)
-
         where:
-        filename          || expectedKind
-        'template.vm'     || TemplateEngineKind.Velocity
-        'template.VM'     || TemplateEngineKind.Velocity
-        'template.vtl'    || TemplateEngineKind.Velocity
-        'template.VTL'    || TemplateEngineKind.Velocity
-        'template.docx'   || TemplateEngineKind.Freemarker
-        'invoice.vm.docx' || TemplateEngineKind.Freemarker
-        'report.odt'      || TemplateEngineKind.Freemarker
+        filename            || expectedKind
+        'invoice.vm.docx'   || TemplateEngineKind.Velocity
+        'report.VM.docx'    || TemplateEngineKind.Velocity
+        'movement.vtl.odt'  || TemplateEngineKind.Velocity
+        'movement.VTL.ODT'  || TemplateEngineKind.Velocity
+        'template.vm'       || TemplateEngineKind.Velocity
+        'template.VTL'      || TemplateEngineKind.Velocity
+        'template.docx'     || TemplateEngineKind.Freemarker
+        'movement.docx'     || TemplateEngineKind.Freemarker
+        'report.odt'        || TemplateEngineKind.Freemarker
+        'summary.vmx.docx'  || TemplateEngineKind.Freemarker
     }
 
     /**

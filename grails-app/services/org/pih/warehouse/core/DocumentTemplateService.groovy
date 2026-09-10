@@ -19,7 +19,6 @@ import fr.opensagres.xdocreport.template.TemplateEngineKind
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata
 import grails.gorm.transactions.Transactional
 import groovy.text.Template
-import org.apache.commons.io.FilenameUtils
 import org.grails.gsp.GroovyPagesTemplateEngine
 import org.jxls.common.Context
 import org.jxls.util.JxlsHelper
@@ -35,8 +34,16 @@ import org.pih.warehouse.requisition.RequisitionService
 import org.pih.warehouse.shipping.Shipment
 import org.pih.warehouse.util.PdfUtil
 
+import java.util.regex.Pattern
+
 @Transactional
 class DocumentTemplateService {
+
+    /**
+     * ".vm" or ".vtl" as a dot-delimited segment of the file name - "template.vm",
+     * "invoice.vm.docx" - matched against the lower-cased name, so the marker is case-insensitive.
+     */
+    private static final Pattern VELOCITY_TEMPLATE_MARKER = Pattern.compile('\\.(vm|vtl)(\\.|$)')
 
     GroovyPagesTemplateEngine groovyPagesTemplateEngine
     ForecastingService forecastingService
@@ -94,12 +101,14 @@ class DocumentTemplateService {
 
     def renderOrderDocumentTemplate(Document documentTemplate, Order orderInstance, ConverterTypeTo targetDocumentType, OutputStream outputStream) {
         try {
-            // Match the file's actual extension, case-insensitively. contains(".vm") is a substring
-            // test: it picks Velocity for "invoice.vm.docx" and Freemarker for "report.VM", so the
-            // engine that executes the uploaded template was decided by something other than what
-            // the file is.
-            String extension = FilenameUtils.getExtension(documentTemplate.filename)?.toLowerCase()
-            Boolean isVelocityTemplate = extension in ['vm', 'vtl']
+            // The Velocity marker is a NAME SEGMENT, not the file's extension. XDocReport loads a
+            // template by reading it as a zip, so anything it can load is a .docx or an .odt and
+            // the marker sits in front of that extension: "invoice.vm.docx". Selecting on the real
+            // extension would therefore make Velocity unreachable by naming (E14). The old
+            // contains(".vm") got the segment right by accident but was case-sensitive, so
+            // "report.VM.docx" was handed to Freemarker.
+            Boolean isVelocityTemplate = VELOCITY_TEMPLATE_MARKER
+                .matcher(documentTemplate.filename?.toLowerCase() ?: "").find()
 
             TemplateEngineKind templateEngineKind = isVelocityTemplate ?
                 TemplateEngineKind.Velocity : TemplateEngineKind.Freemarker

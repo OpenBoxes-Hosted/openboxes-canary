@@ -56,9 +56,9 @@ class HardenedTemplateEngines {
             // call. Nothing is done with the value here; do not remove the call.
             freemarkerConfiguration()
         } else if (templateEngineKind == TemplateEngineKind.Velocity) {
-            // Likewise: reading the engine is what replaces XDocReport's Velocity engines with
-            // hardened ones, exactly once. Do not remove the call.
-            velocity()
+            // Builds the hardened engines on the first call and, on every call after that, checks
+            // they are still the ones XDocReport would hand out. Do not remove the call.
+            HardenedVelocity.ensureRegistered()
         }
         return templateEngineKind
     }
@@ -134,8 +134,9 @@ class HardenedTemplateEngines {
     private static final String LEGACY_UBERSPECT_KEY = "runtime.introspector.uberspect"
 
     /**
-     * The hardened Velocity engine XDocReport renders a .docx with - the same instance every time,
-     * and the instance the document registry itself hands out for DOCX once this has run.
+     * The hardened Velocity engine XDocReport renders a .docx with - the same instance every time.
+     * A plain accessor: it builds the engines on first use, but it is hardened() that keeps them
+     * registered, so read this to identify the engine and call hardened() to render through it.
      *
      * Velocity's default introspector lets a template walk from any context object to
      * java.lang.Class and instantiate or invoke anything on the classpath. SecureUberspector
@@ -158,12 +159,14 @@ class HardenedTemplateEngines {
         Properties properties = new Properties()
 
         /*
-         * VelocityTemplateEngineDiscovery.createTemplateEngine() reproduced, in its order: an
-         * optional velocity.properties from the classpath, then the settings the discovery adds,
-         * then XDocReport's own defaults last. Reproducing it is what keeps a hardened engine and
-         * a stock one identical in everything but the introspector - the discovery hands its
-         * Properties straight to a VelocityTemplateEngine constructor, so there is no other way to
-         * reach them.
+         * Faithful to XDocReport 2.0.4's
+         * VelocityTemplateEngineDiscovery.getVelocityEngineProperties(Properties, Properties), in
+         * its order: an optional velocity.properties from the classpath, then the settings the
+         * discovery adds, then XDocReport's own defaults last. Reproducing it is what keeps a
+         * hardened engine and a stock one identical in everything but the introspector - the
+         * discovery hands its Properties straight to a VelocityTemplateEngine constructor, so
+         * there is no other way to reach them. If that method changes in a later XDocReport, this
+         * one has to change with it; nothing fails if it does not.
          */
         Properties velocityDefaults = classpathProperties(VELOCITY_PROPERTIES)
         if (velocityDefaults != null) {
@@ -208,24 +211,60 @@ class HardenedTemplateEngines {
     }
 
     /*
-     * Initialisation-on-demand holder, as above: the replacement happens exactly once, on the
-     * first .vm or .vtl render, and never again. Constructing a VelocityTemplateEngine is not the
+     * Initialisation-on-demand holder, as above: the engines are built exactly once, on the first
+     * .vm or .vtl render, and never again. Constructing a VelocityTemplateEngine is not the
      * expensive part - VelocityEngine.init() is, and it is deferred to the engine's first use -
      * but building one per rendered document would still mean a fresh RuntimeInstance, a fresh
      * parser pool and an empty introspector cache every time (G3-3).
+     *
+     * Failure here is deliberately fatal and stays fatal: a throw from a static initialiser is an
+     * ExceptionInInitializerError on the first touch and a NoClassDefFoundError on every touch
+     * afterwards, so a build that cannot be hardened cannot render at all. XDocReport's own
+     * discovery is tolerant instead - it returns null for a missing properties resource and
+     * carries on - which is the right default for a vendor and the wrong one for a control that
+     * exists to stop template text executing code.
      */
     private static class HardenedVelocity {
 
-        static final ITemplateEngine ENGINE = harden()
+        static final Map<DocumentKind, ITemplateEngine> ENGINES = harden()
+
+        static final ITemplateEngine ENGINE =
+            ENGINES.get(DocumentKind.DOCX) ?: ENGINES.values().iterator().next()
+
+        /*
+         * Re-registers the hardened engines if XDocReport is no longer handing them out, and is a
+         * pair of map reads in the ordinary case.
+         *
+         * This is where Velocity differs from Freemarker, and the asymmetry is worth stating:
+         * TemplateEngineInitializerRegistry.dispose() is public and final, and its doDispose()
+         * CLEARS the engine cache, so the next lookup re-runs the discoveries and rebuilds stock,
+         * unhardened engines. Freemarker's hardening cannot be lost that way because it lives on
+         * FreemarkerTemplateEngine's own static Configuration, which no registry owns. Nothing in
+         * OpenBoxes calls dispose() today; this makes the guarantee independent of that.
+         *
+         * The register() call underneath mutates a plain unsynchronised HashMap. That is
+         * XDocReport's own pattern - its registries build and mutate those maps the same way - and
+         * it is reached here only on the first render and after a dispose, never in the steady
+         * state, which is why this method reads before it writes.
+         */
+        static void ensureRegistered() {
+            TemplateEngineInitializerRegistry registry = TemplateEngineInitializerRegistry.getRegistry()
+            ENGINES.each { DocumentKind documentKind, ITemplateEngine engine ->
+                if (!engine.is(registry.getTemplateEngine(TemplateEngineKind.Velocity, documentKind))) {
+                    registry.register(engine, documentKind)
+                }
+            }
+        }
 
         /*
          * XDocReport keeps one Velocity engine per document kind, and loadReport looks the engine
          * up there by the kind of the document it has just read. So hardening is a matter of
          * putting an engine that carries SecureUberspector where XDocReport will find it, with the
          * document-kind configuration and template cache the stock engine was given - dropping
-         * either would cost XML escaping (E8) or the report cache.
+         * either would cost XML escaping (E8) or the report cache. Both of those are stable
+         * singletons, so the same hardened engines stay correct across a dispose and rebuild.
          */
-        private static ITemplateEngine harden() {
+        private static Map<DocumentKind, ITemplateEngine> harden() {
             TemplateEngineInitializerRegistry registry = TemplateEngineInitializerRegistry.getRegistry()
             Map<DocumentKind, ITemplateEngine> hardened = new LinkedHashMap<DocumentKind, ITemplateEngine>()
 
@@ -248,7 +287,7 @@ class HardenedTemplateEngines {
                 throw new IllegalStateException("Cannot harden the Velocity template engine: " +
                     "XDocReport has no Velocity engine registered for any document kind")
             }
-            return hardened.get(DocumentKind.DOCX) ?: hardened.values().iterator().next()
+            return hardened
         }
     }
 }

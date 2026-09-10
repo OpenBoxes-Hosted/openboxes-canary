@@ -156,6 +156,40 @@ class HardenedTemplateEnginesVelocitySpec extends Specification {
         documentKind << [DocumentKind.DOCX, DocumentKind.ODT]
     }
 
+    /**
+     * The one way the hardening can be lost, and the one place Velocity differs from Freemarker.
+     * TemplateEngineInitializerRegistry.dispose() is public and final and its doDispose() clears
+     * the engine cache, so the next lookup rebuilds stock engines from the discoveries. Freemarker
+     * cannot lose its hardening that way - it lives on a static Configuration no registry owns.
+     */
+    void "the hardening survives a dispose of the document registry"() {
+        given:
+        HardenedTemplateEngines.hardened(TemplateEngineKind.Velocity)
+
+        when: "something disposes the registry"
+        TemplateEngineInitializerRegistry.getRegistry().dispose()
+
+        then: "XDocReport really has rebuilt a stock engine, and it really is unhardened"
+        ITemplateEngine rebuilt = TemplateEngineInitializerRegistry.getRegistry()
+            .getTemplateEngine(TemplateEngineKind.Velocity, DocumentKind.DOCX)
+        assert !rebuilt.is(HardenedTemplateEngines.velocity())
+        assert render(rebuilt, PAYLOAD).contains(RESOLVED)
+
+        when: "the next render goes through hardened(), as every render does"
+        HardenedTemplateEngines.hardened(TemplateEngineKind.Velocity)
+
+        then: "the hardened engine is back where loadReport looks"
+        assert TemplateEngineInitializerRegistry.getRegistry()
+            .getTemplateEngine(TemplateEngineKind.Velocity, DocumentKind.DOCX)
+            .is(HardenedTemplateEngines.velocity())
+
+        and: "and a real .docx render is refused again"
+        assert !renderDocx(PAYLOAD, [order: [description: "ACME"]]).contains(RESOLVED)
+
+        and: "the same engine instance throughout - a dispose must not build a second one"
+        assert HardenedTemplateEngines.velocity().is(HardenedTemplateEngines.velocity())
+    }
+
     void "a .docx loaded through XDocReport cannot reach java.lang.Runtime"() {
         expect:
         assert !renderDocx(PAYLOAD, [order: [description: "ACME"]]).contains(RESOLVED)
