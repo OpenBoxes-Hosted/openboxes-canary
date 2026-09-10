@@ -10,16 +10,58 @@
 package org.pih.warehouse.core
 
 import grails.core.GrailsApplication
+import org.apache.commons.io.FilenameUtils
+
+import java.nio.file.Files
 
 class UploadService {
 
     GrailsApplication grailsApplication
     FileService fileService
 
+    /**
+     * Create a file in the uploads directory for one upload, and prove it is in there.
+     *
+     * The name is reduced to its base name first, then the file is CREATED inside the uploads
+     * directory rather than merely named after it. Creating it is what makes the check below
+     * meaningful: comparing canonical paths after the fact resolves symlinks and any remaining
+     * relative segment, which a string test on the name cannot do. It also makes the name unique
+     * per call, so two people importing "products.xlsx" at the same moment no longer write to the
+     * same path and overwrite each other before either file has been parsed.
+     */
     File createLocalFile(String filename) {
-        log.info "Create local file ${filename}"
-        def uploadsDirectory = findOrCreateUploadsDirectory()
-        return new File(uploadsDirectory.absolutePath, filename)
+        String safeFilename = toSafeFilename(filename)
+        log.info "Create local file ${safeFilename}"
+        File uploadsDirectory = findOrCreateUploadsDirectory()
+
+        // An empty prefix is allowed here: the three-character minimum is java.io.File.createTempFile's
+        // rule, not java.nio.file.Files'.
+        File localFile = Files.createTempFile(uploadsDirectory.toPath(), "", "-${safeFilename}").toFile()
+
+        File canonicalUploadsDirectory = uploadsDirectory.canonicalFile
+        if (localFile.canonicalFile.parentFile != canonicalUploadsDirectory) {
+            localFile.delete()
+            throw new IllegalArgumentException(
+                    "Refusing to use ${localFile.canonicalPath}: it is not in the uploads directory " +
+                            "${canonicalUploadsDirectory.path}")
+        }
+        return localFile
+    }
+
+    /**
+     * Reduce a name supplied by an upload to the file name it is allowed to be.
+     *
+     * MultipartFile.originalFilename is not a safe path component. Grails resolves multipart
+     * requests with Spring's StandardServletMultipartResolver, and StandardMultipartFile returns
+     * the Content-Disposition filename exactly as it was sent - unlike CommonsMultipartFile, which
+     * strips the directory part itself. So the caller may be handing us "../../somewhere/else".
+     */
+    static String toSafeFilename(String filename) {
+        String name = FilenameUtils.getName(filename)
+        if (!name?.trim() || name == '.' || name == '..') {
+            throw new IllegalArgumentException("Uploaded file must have a file name: ${filename}")
+        }
+        return name
     }
 
     File findOrCreateUploadsDirectory() {
