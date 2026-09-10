@@ -246,8 +246,13 @@ class CycleCountApiController extends BaseApiController {
     def uploadCycleCountItems(ImportDataCommand command) {
         MultipartFile importFile = command.importFile
         File localFile = uploadService.createLocalFile(importFile.originalFilename)
-        importFile.transferTo(localFile)
-        DataImporter cycleCountItemsExcelImporter = new CycleCountItemsExcelImporter(localFile.absolutePath)
+        DataImporter cycleCountItemsExcelImporter
+        try {
+            importFile.transferTo(localFile)
+            cycleCountItemsExcelImporter = new CycleCountItemsExcelImporter(localFile.absolutePath)
+        } finally {
+            uploadService.deleteLocalFile(localFile)
+        }
         // After importer takes care of parsing the data, assign it to the import data command that is further validated
         command.data = cycleCountItemsExcelImporter.data
         cycleCountItemsExcelImporter.validateData(command)
@@ -259,8 +264,13 @@ class CycleCountApiController extends BaseApiController {
     def uploadCycleCountRecountItems(ImportDataCommand command) {
         MultipartFile importFile = command.importFile
         File localFile = uploadService.createLocalFile(importFile.originalFilename)
-        importFile.transferTo(localFile)
-        DataImporter cycleCountRecountItemsExcelImporter = new CycleCountRecountItemsExcelImporter(localFile.absolutePath)
+        DataImporter cycleCountRecountItemsExcelImporter
+        try {
+            importFile.transferTo(localFile)
+            cycleCountRecountItemsExcelImporter = new CycleCountRecountItemsExcelImporter(localFile.absolutePath)
+        } finally {
+            uploadService.deleteLocalFile(localFile)
+        }
         // After importer takes care of parsing the data, assign it to the import data command that is further validated
         command.data = cycleCountRecountItemsExcelImporter.data
         cycleCountRecountItemsExcelImporter.validateData(command)

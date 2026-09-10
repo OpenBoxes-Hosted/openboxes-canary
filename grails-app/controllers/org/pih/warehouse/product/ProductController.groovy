@@ -1058,7 +1058,12 @@ class ProductController {
                 return
             }
 
-            def excelImporter = new ProductSynonymExcelImporter(localFile.absolutePath)
+            def excelImporter
+            try {
+                excelImporter = new ProductSynonymExcelImporter(localFile.absolutePath)
+            } finally {
+                uploadService.deleteLocalFile(localFile)
+            }
             command.data = excelImporter.data
 
             command.errors = null

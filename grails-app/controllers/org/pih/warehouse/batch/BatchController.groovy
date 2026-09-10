@@ -56,7 +56,11 @@ class BatchController {
             def uploadFile = request.getFile('xlsFile')
             if (!uploadFile.empty) {
                 def localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                uploadFile.transferTo(localFile)
+                try {
+                    uploadFile.transferTo(localFile)
+                } finally {
+                    uploadService.deleteLocalFile(localFile)
+                }
             }
         }
     }

@@ -64,6 +64,22 @@ class UploadService {
         return name
     }
 
+    /**
+     * Delete a file created by {@link #createLocalFile}. Uploads are parsed into memory and then
+     * finished with, so keeping them leaves every uploaded spreadsheet on the instance for the life
+     * of the process. Null-tolerant and non-throwing: callers use this on their unwind path.
+     */
+    boolean deleteLocalFile(File localFile) {
+        if (!localFile) {
+            return false
+        }
+        boolean deleted = localFile.delete()
+        if (!deleted && localFile.exists()) {
+            log.warn("Unable to delete uploaded file ${localFile.absolutePath}")
+        }
+        return deleted
+    }
+
     File findOrCreateUploadsDirectory() {
         String directoryPath = grailsApplication.config.openboxes.uploads.location
         log.info("Find or create uploads directory ${directoryPath}")

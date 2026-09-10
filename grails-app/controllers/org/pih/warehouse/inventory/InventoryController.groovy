@@ -1202,12 +1202,18 @@ class InventoryController {
                     localFile = uploadService.createLocalFile(uploadFile.originalFilename)
                     uploadFile.transferTo(localFile)
                 } catch (Exception e) {
+                    uploadService.deleteLocalFile(localFile)
                     throw new RuntimeException(e)
                 }
             }
 
             //Iterate through bookList and create/persists your domain instances
-            def excelImporter = new InventoryExcelImporter(localFile.absolutePath)
+            def excelImporter
+            try {
+                excelImporter = new InventoryExcelImporter(localFile.absolutePath)
+            } finally {
+                uploadService.deleteLocalFile(localFile)
+            }
             inventoryList = excelImporter.data
             println inventoryList
         }
