@@ -1,10 +1,38 @@
 package org.pih.warehouse
 
+import grails.testing.web.interceptor.InterceptorUnitTest
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import org.pih.warehouse.core.RoleType
+import org.pih.warehouse.core.User
+import org.pih.warehouse.core.UserService
+
 @Unroll
-class RoleInterceptorSpec extends Specification {
+class RoleInterceptorSpec extends Specification implements InterceptorUnitTest<RoleInterceptor> {
+
+    // A deployment-configured rule that grants the whole 'user' controller to anyone with ROLE_ADMIN.
+    // 'user.impersonate' is superuser-only; 'user.show' is not.
+    private static final List CONFIGURED_RULES = [
+        [controller: 'user', actions: ['*'], accessRules: [minimumRequiredRole: RoleType.ROLE_ADMIN]]
+    ]
+
+    private void configureRules() {
+        grailsApplication.config.merge([openboxes: [security: [rbac: [rules: CONFIGURED_RULES]]]])
+    }
+
+    private void requestFor(String controller, String action) {
+        webRequest.controllerName = controller
+        webRequest.actionName = action
+    }
+
+    private void withUser(boolean superuser) {
+        interceptor.userService = Stub(UserService) {
+            isUserInRole(_, _) >> true
+            isSuperuser(_) >> superuser
+        }
+        session.user = new User(username: superuser ? 'superuser' : 'admin.user')
+    }
 
     // convenience method so we can write a big, expressive, expansive @Unroll table
     private boolean needRoleRouter(String controller, String action, String role) {
@@ -148,5 +176,56 @@ class RoleInterceptorSpec extends Specification {
         'createProductFromTemplate' | 'admin'   || 'requires'
         'createProductFromTemplate' | 'manager' || 'requires'
         'createProductFromTemplate' | 'invoice' || 'does not require'
+    }
+
+    void "a configured rule does not grant #controller.#action to a non-superuser"() {
+        given:
+        configureRules()
+        requestFor(controller, action)
+        withUser(false)
+
+        expect:
+        !interceptor.before()
+
+        and:
+        response.redirectedUrl == '/errors/handleForbidden'
+
+        where:
+        controller | action
+        'user'     | 'impersonate'
+    }
+
+    void "a configured rule still grants #controller.#action to a superuser"() {
+        given:
+        configureRules()
+        requestFor(controller, action)
+        withUser(true)
+
+        expect:
+        interceptor.before()
+
+        and:
+        response.redirectedUrl == null
+
+        where:
+        controller | action
+        'user'     | 'impersonate'
+    }
+
+    void "a configured rule still grants #controller.#action, which is not superuser-only, to a non-superuser"() {
+        given:
+        configureRules()
+        requestFor(controller, action)
+        withUser(false)
+
+        expect:
+        interceptor.before()
+
+        and:
+        response.redirectedUrl == null
+
+        where:
+        controller | action
+        'user'     | 'show'
     }
 }

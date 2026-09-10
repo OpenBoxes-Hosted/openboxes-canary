@@ -106,6 +106,13 @@ class RoleInterceptor {
 
     boolean before() {
 
+        // Superuser-only controllers and actions stay superuser-only, whatever the configured rules say
+        if (needSuperuser(controllerName, actionName) && !userService.isSuperuser(session.user)) {
+            log.info("User ${session?.user?.username} does not have access to superuser-only ${controllerName}/${actionName} in location ${session?.warehouse?.name}")
+            redirect(controller: "errors", action: "handleForbidden")
+            return false
+        }
+
         def rules = grailsApplication.config.openboxes.security.rbac.rules
         def rule = rules.find { it.controller == controllerName && it.actions.contains(actionName) ||
             it.controller == controllerName && it.actions.contains("*") ||
