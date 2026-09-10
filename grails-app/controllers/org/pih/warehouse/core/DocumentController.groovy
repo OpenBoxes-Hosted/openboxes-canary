@@ -210,10 +210,7 @@ class DocumentController {
 
             documentInstance.validate()
 
-            List<DocumentCode> forbiddenDocumentCodes = DocumentCode.templateList()
-            if (documentType && forbiddenDocumentCodes.contains(documentType.documentCode)) {
-                documentInstance.errors.reject("documentType", "Template types are not allowed for this document upload")
-            }
+            rejectTemplateDocumentType(documentInstance, documentType)
 
             // Check to see if there are any errors
             if (!documentInstance.hasErrors()) {
@@ -533,19 +530,26 @@ class DocumentController {
         // bind the command object to the document object ignoring the shipmentId and fileContents params (which can't change after creation)
         //bindData(documentInstance, command, ['shipmentId','orderId'])
         // manually update the document type
-        documentInstance.name = command.name
-        documentInstance.documentNumber = command.documentNumber
-        documentInstance.documentType = DocumentType.get(command.typeId)
+        DocumentType documentType = DocumentType.get(command.typeId)
 
-        // If a new file is passed we should update all of the read-only properties
-        def file = command.fileContents
+        // Nothing is applied to a rejected write: this action replaces fileContents as well as the
+        // type, so applying the file while refusing the type would still let the caller put new
+        // contents into a template document.
+        if (!rejectTemplateDocumentType(documentInstance, documentType)) {
+            documentInstance.name = command.name
+            documentInstance.documentNumber = command.documentNumber
+            documentInstance.documentType = documentType
 
-        if (file && !file.empty) {
-            documentInstance.name = command.name ?: file.originalFilename
-            documentInstance.filename = file.originalFilename
-            documentInstance.fileContents = file.bytes
-            documentInstance.extension = FileUtil.getExtension(file.originalFilename)
-            documentInstance.contentType = file.contentType
+            // If a new file is passed we should update all of the read-only properties
+            def file = command.fileContents
+
+            if (file && !file.empty) {
+                documentInstance.name = command.name ?: file.originalFilename
+                documentInstance.filename = file.originalFilename
+                documentInstance.fileContents = file.bytes
+                documentInstance.extension = FileUtil.getExtension(file.originalFilename)
+                documentInstance.contentType = file.contentType
+            }
         }
 
         if (!documentInstance.hasErrors()) {
@@ -653,6 +657,29 @@ class DocumentController {
             throw new IllegalArgumentException("Only documents of type ZEBRA_TEMPLATE can be rendered as Zebra templates")
         }
         return document
+    }
+
+    /**
+     * Template documents are executed, not just stored, so they may only be created or replaced
+     * through the superuser-only document administration screens. Returns true when the write was
+     * rejected.
+     *
+     * Both types matter. The incoming type is the obvious one. The document's CURRENT type is the
+     * one that is easy to miss: saveDocument takes an existing document id and an optional typeId,
+     * so omitting typeId leaves the incoming type null and a check that looks only at it lets the
+     * caller replace the contents of a document that is already a template - which is the same
+     * code-execution write, with the type check simply skipped.
+     */
+    private boolean rejectTemplateDocumentType(Document documentInstance, DocumentType documentType) {
+        List<DocumentCode> templateCodes = DocumentCode.templateList()
+        boolean incomingIsTemplate = documentType && templateCodes.contains(documentType.documentCode)
+        boolean currentIsTemplate =
+                documentInstance?.documentType && templateCodes.contains(documentInstance.documentType.documentCode)
+        if (incomingIsTemplate || currentIsTemplate) {
+            documentInstance.errors.reject("documentType", "Template types are not allowed for this document upload")
+            return true
+        }
+        return false
     }
 
 }

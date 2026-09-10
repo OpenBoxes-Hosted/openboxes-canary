@@ -70,7 +70,11 @@ class RoleInterceptor {
         'productsConfigurationApi'  : ['downloadCategories', 'importCategories'],
         'locationType'              : ['create', 'edit', 'delete', 'update', 'save'],
         'quartz'                    : ['*'],
-        'jobs'                      : ['*']
+        'jobs'                      : ['*'],
+        // These four actions can set an arbitrary document type on an arbitrary file
+        // and replace an existing document's contents. Attachment upload and metadata
+        // edits go through uploadDocument / saveDocument and are unaffected.
+        'document'                  : ['create', 'save', 'update', 'upload']
     ]
 
     def static invoiceActions = [
