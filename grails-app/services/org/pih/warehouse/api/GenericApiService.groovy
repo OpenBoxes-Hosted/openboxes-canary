@@ -23,6 +23,51 @@ import org.hibernate.criterion.Restrictions
 @Transactional
 class GenericApiService {
 
+    /**
+     * The resources the generic API is documented to expose, plus shipmentType, which the
+     * user interface reads. Names are simple domain class names and are matched
+     * case-insensitively.
+     */
+    static final List<String> DOCUMENTED_RESOURCES = [
+        "product",
+        "inventoryItem",
+        "shipment",
+        "shipmentItem",
+        "requisition",
+        "requisitionItem",
+        "transaction",
+        "transactionEntry",
+        "category",
+        "locationType",
+        "locationGroup",
+        "person",
+        "organization",
+        "shipmentType",
+    ].asImmutable()
+
+    /**
+     * Resources that no API client asks for, but that the application itself resolves by
+     * name through this service: the select option lists (SelectOptionsApiController) and
+     * the spreadsheet templates offered by the import screens (BatchController).
+     */
+    static final List<String> INTERNAL_RESOURCES = [
+        "inventoryLevel",
+        "location",
+        "paymentTerm",
+        "preferenceType",
+        "productAssociation",
+        "productCatalog",
+        "productCatalogItem",
+        "productGroup",
+        "productPackage",
+        "productSupplierPreference",
+        "synonym",
+        "tag",
+    ].asImmutable()
+
+    /** Every resource name this service is willing to resolve to a domain class. */
+    static final List<String> ALLOWED_RESOURCES = (DOCUMENTED_RESOURCES + INTERNAL_RESOURCES).asImmutable()
+
     SessionFactory sessionFactory
     GrailsApplication grailsApplication
 
@@ -37,12 +82,13 @@ class GenericApiService {
     }
 
     Class getDomainClass(String resourceName) {
-        def className = resourceName.capitalize()
-        def domainClass = getDomainClassByName(className)
-        if (!domainClass) {
-            throw new IllegalAccessException("No domain class ${className} could be found")
+        String allowedResource = ALLOWED_RESOURCES.find { String allowed -> allowed.equalsIgnoreCase(resourceName) }
+        if (!allowedResource) {
+            // Answer exactly as we would for a resource that does not exist, so that the
+            // response cannot be used to discover which domain classes the application has.
+            throw new ObjectNotFoundException(resourceName, resourceName)
         }
-        return domainClass.clazz
+        return getDomainClassByName(allowedResource.capitalize()).clazz
     }
 
     List getList(String resourceName, Map params) {
