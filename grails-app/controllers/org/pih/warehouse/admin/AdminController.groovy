@@ -209,6 +209,12 @@ class AdminController {
                 ConfigMasker.withoutKeys(grailsApplication.config.toProperties(), System.getenv().keySet())
         ).sort()
 
+        // grails.config.locations can be a URL, e.g. https://user:token@host/config.groovy - mask
+        // the user-info out of it here so the view never has the raw, credential-bearing value.
+        Object externalConfigLocations = ConfigMasker.maskUrlUserInfo(
+                grailsApplication.config.grails.config.locations
+        )
+
         [
                 gitProperties           : gitProperties,
                 quartzScheduler         : quartzScheduler,
@@ -220,6 +226,7 @@ class AdminController {
                 port                    : "${config.getProperty("grails.mail.port")}",
                 mailProperties          : ConfigMasker.mask(grailsApplication.config.grails.mail),
                 externalConfigProperties: externalConfigProperties,
+                externalConfigLocations : externalConfigLocations,
                 systemProperties        : ConfigMasker.mask(System.properties).sort()
         ]
     }

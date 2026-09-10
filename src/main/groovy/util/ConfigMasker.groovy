@@ -9,6 +9,7 @@
  **/
 package util
 
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 /**
@@ -26,6 +27,11 @@ class ConfigMasker {
 
     private static final Pattern SENSITIVE_KEY = Pattern.compile(
             ".*(password|secret|key|token).*", Pattern.CASE_INSENSITIVE)
+
+    // Matches the "scheme://user:pass@" prefix of a URL so the credentials can be dropped
+    // without disturbing the host/path that follows. Plain file paths (`file:/opt/...`) have
+    // no "//" after the scheme and never match.
+    private static final Pattern URL_USER_INFO = Pattern.compile("(://)([^/@]+)@")
 
     /**
      * Returns a copy of the given map with the value of every credential-shaped key replaced by
@@ -56,6 +62,31 @@ class ConfigMasker {
         }
         Collection<String> excluded = excludedKeys ?: []
         return source.findAll { key, value -> !excluded.contains(key?.toString()) }
+    }
+
+    /**
+     * Returns a copy of {@code grails.config.locations} with any URL user-info masked out.
+     * Grails resolves that setting to a String, a List of Strings, or null depending on how it
+     * was configured; a location given as a URL - {@code https://user:token@host/config.groovy} -
+     * would otherwise disclose those credentials verbatim on the Settings page. Plain file paths
+     * and URLs with no user-info are returned unchanged; null becomes an empty String.
+     */
+    static Object maskUrlUserInfo(Object locations) {
+        if (locations == null) {
+            return ""
+        }
+        if (locations instanceof Collection) {
+            return locations.collect { maskUrlUserInfoInString(it?.toString()) }
+        }
+        return maskUrlUserInfoInString(locations.toString())
+    }
+
+    private static String maskUrlUserInfoInString(String location) {
+        if (location == null) {
+            return ""
+        }
+        Matcher matcher = URL_USER_INFO.matcher(location)
+        return matcher.find() ? matcher.replaceFirst('$1***@') : location
     }
 
     private static boolean isSensitive(String key) {

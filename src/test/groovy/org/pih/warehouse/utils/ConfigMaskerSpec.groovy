@@ -59,4 +59,32 @@ class ConfigMaskerSpec extends Specification {
         ConfigMasker.withoutKeys([PATH: '/usr/bin', HOME: '/root', 'server.port': '8080'],
                                  ['PATH', 'HOME'] as Set) == ['server.port': '8080']
     }
+
+    void 'maskUrlUserInfo redacts the credentials out of a URL location'() {
+        expect:
+        ConfigMasker.maskUrlUserInfo('https://user:token@example.com/config.groovy') ==
+                'https://***@example.com/config.groovy'
+    }
+
+    void 'maskUrlUserInfo leaves a plain file path unchanged'() {
+        expect:
+        ConfigMasker.maskUrlUserInfo('file:/opt/openboxes/openboxes-config.properties') ==
+                'file:/opt/openboxes/openboxes-config.properties'
+    }
+
+    void 'maskUrlUserInfo masks a list of locations element-wise'() {
+        expect:
+        ConfigMasker.maskUrlUserInfo([
+                'https://user:token@example.com/config.groovy',
+                'file:/opt/openboxes/openboxes-config.properties'
+        ]) == [
+                'https://***@example.com/config.groovy',
+                'file:/opt/openboxes/openboxes-config.properties'
+        ]
+    }
+
+    void 'maskUrlUserInfo returns an empty string for null'() {
+        expect:
+        ConfigMasker.maskUrlUserInfo(null) == ''
+    }
 }

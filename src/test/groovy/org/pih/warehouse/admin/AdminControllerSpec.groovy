@@ -49,6 +49,23 @@ class AdminControllerSpec extends Specification implements ControllerUnitTest<Ad
         model.externalConfigProperties['dataSource.username'] == 'openboxes'
     }
 
+    void 'showSettings masks user-info credentials out of the external config locations'() {
+        given:
+        config.grails.config.locations = [
+                'https://user:token@example.com/config.groovy',
+                'file:/opt/openboxes/openboxes-config.properties'
+        ]
+
+        when:
+        Map model = controller.showSettings()
+
+        then:
+        model.externalConfigLocations == [
+                'https://***@example.com/config.groovy',
+                'file:/opt/openboxes/openboxes-config.properties'
+        ]
+    }
+
     void 'showSettings masks system properties as well as config'() {
         given:
         System.setProperty('spec.fake.password', 'hunter2')

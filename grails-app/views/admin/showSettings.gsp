@@ -192,7 +192,7 @@
                                     <label><warehouse:message code="admin.externalConfigFile.label"/></label>
                                 </td>
                                 <td>
-                                    ${grailsApplication.config.grails.config.locations }
+                                    ${externalConfigLocations }
                                 </td>
                             </tr>
                             <g:each in="${externalConfigProperties}" var="property">
