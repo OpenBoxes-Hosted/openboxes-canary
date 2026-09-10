@@ -670,9 +670,9 @@ class DocumentController {
     }
 
     /**
-     * Template documents are executed, not just stored, so they may only be created or replaced
-     * through the superuser-only document administration screens. Returns true when the write was
-     * rejected.
+     * Template documents and data exports are executed, not just stored, so they may only be
+     * created or replaced through the superuser-only document administration screens. Returns
+     * true when the write was rejected.
      *
      * Both types matter. The incoming type is the obvious one. The document's CURRENT type is the
      * one that is easy to miss: saveDocument takes an existing document id and an optional typeId,
@@ -681,7 +681,7 @@ class DocumentController {
      * code-execution write, with the type check simply skipped.
      */
     private boolean rejectTemplateDocumentType(Document documentInstance, DocumentType documentType) {
-        List<DocumentCode> templateCodes = DocumentCode.templateList()
+        List<DocumentCode> templateCodes = DocumentCode.executableList()
         boolean incomingIsTemplate = documentType && templateCodes.contains(documentType.documentCode)
         boolean currentIsTemplate =
                 documentInstance?.documentType && templateCodes.contains(documentInstance.documentType.documentCode)

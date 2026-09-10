@@ -52,6 +52,11 @@ class RoleInterceptorSpec extends Specification {
         'superuser'       | 'documentType'          | 'index'                       || 'requires'
         'superuser'       | 'documentType'          | 'list'                        || 'requires'
         'superuser'       | 'documentType'          | 'show'                        || 'requires'
+        // dataExport documents are run as SQL through DataExportController.render() with no
+        // sandbox (C3) -- the whole controller is gated the same way as documentType above, so
+        // both index (which lists existing DATA_EXPORT documents) and render require superuser.
+        'superuser'       | 'dataExport'            | 'render'                      || 'requires'
+        'superuser'       | 'dataExport'            | 'index'                       || 'requires'
         'superuser'       | 'inventory'             | 'createInboundTransfer'       || 'requires'
         'superuser'       | 'inventory'             | 'deleteTransaction'           || 'requires'
         'superuser'       | 'inventory'             | 'list'                        || 'does not require'
@@ -167,6 +172,10 @@ class RoleInterceptorSpec extends Specification {
         // Whole-controller superuser gate for the scaffolded DocumentTypeController (H-27):
         // no action name -- including ones nobody has written yet -- escapes it.
         'documentType'              | 'superuser' || 'requires'
+        // Same whole-controller gate for dataExport (C3): DATA_EXPORT documents are executed as
+        // SQL, so no action name on this controller -- including ones nobody has written yet --
+        // should escape it either.
+        'dataExport'                | 'superuser' || 'requires'
         'admin'                     | 'admin'     || 'requires'
         'admin'                     | 'manager'   || 'does not require'
         'admin'                     | 'invoice'   || 'does not require'
