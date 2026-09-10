@@ -56,7 +56,10 @@ class RoleInterceptor {
     // documentType is the scaffolded DocumentTypeController (static scaffold = DocumentType);
     // documentCode is plain-bindable, so a manager could otherwise create or flip a type to
     // GSP_TEMPLATE and retro-promote an uploaded file into an executable template (H-27).
-    def static superuserControllers = ['documentType']
+    // dataExport renders a DATA_EXPORT document by running its contents as SQL with no sandbox
+    // (C3); the whole controller is gated the same way, so listing existing exports is
+    // superuser-only too.
+    def static superuserControllers = ['documentType', 'dataExport']
     def static superuserActions = [
         // Both read server-wide state that is not scoped to the requesting user: SHOW PROCESSLIST
         // returns every thread belonging to the application's database account, and SHOW ENGINE

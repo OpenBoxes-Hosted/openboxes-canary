@@ -62,4 +62,15 @@ enum DocumentCode {
                 INVOICE_TEMPLATE,
         ]
     }
+
+    /**
+     * Document codes whose document bytes are executed or evaluated, rather than just stored or
+     * downloaded: the template codes (rendered through GSP/Freemarker/Velocity/JXLS) plus
+     * DATA_EXPORT, whose bytes are run as a SQL query by DataExportController. This is the
+     * write-gate's source of truth for which document codes may only be created or re-typed by a
+     * superuser.
+     */
+    static executableList() {
+        templateList() + [DATA_EXPORT]
+    }
 }
