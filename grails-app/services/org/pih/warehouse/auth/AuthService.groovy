@@ -18,32 +18,40 @@ import org.pih.warehouse.core.User
 @Transactional(readOnly = true)
 class AuthService {
 
-    private static ThreadLocal<User> threadLocalUser
-    private static ThreadLocal<Location> threadLocalLocation
+    private static final ThreadLocal<User> threadLocalUser = new ThreadLocal<User>()
+    private static final ThreadLocal<Location> threadLocalLocation = new ThreadLocal<Location>()
 
     void setCurrentUser(User user) {
-        if (!threadLocalUser) {
-            threadLocalUser = new ThreadLocal<User>()
-        }
-
         // misuse get() to prevent javax.persistence.EntityExistsException
         threadLocalUser.set(user?.id ? User.get(user.id) : null)
     }
 
     static User getCurrentUser() {
-        return threadLocalUser?.get()
+        return threadLocalUser.get()
     }
 
     void setCurrentLocation(Location location) {
-        if (!threadLocalLocation) {
-            threadLocalLocation = new ThreadLocal<Location>()
-        }
-
         // misuse get() to prevent javax.persistence.EntityExistsException
         threadLocalLocation.set(location?.id ? Location.get(location.id) : null)
     }
 
     static Location getCurrentLocation() {
-        return threadLocalLocation?.get()
+        return threadLocalLocation.get()
+    }
+
+    /**
+     * Detach the current thread from the user and location it was serving.
+     *
+     * Request threads are pooled, so the entries have to be removed rather than nulled. Static
+     * deliberately: GORM's @Transactional transform skips static methods, and clearing a
+     * ThreadLocal must not need a database connection - this runs while the request is unwinding,
+     * which is exactly when the connection may already be gone.
+     */
+    static void clear() {
+        try {
+            threadLocalUser.remove()
+        } finally {
+            threadLocalLocation.remove()
+        }
     }
 }
