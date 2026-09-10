@@ -113,4 +113,23 @@ class UploadServiceSpec extends Specification implements ServiceUnitTest<UploadS
         second?.delete()
     }
 
+    void "deleteLocalFile removes the file"() {
+        given:
+        File localFile = service.createLocalFile('products.xlsx')
+        localFile.text = 'a spreadsheet, allegedly'
+
+        when:
+        boolean deleted = service.deleteLocalFile(localFile)
+
+        then:
+        deleted
+        !localFile.exists()
+    }
+
+    void "deleteLocalFile tolerates a file that is not there"() {
+        expect:
+        !service.deleteLocalFile(null)
+        !service.deleteLocalFile(new File(uploadsDirectory, 'never-written.xlsx'))
+    }
+
 }
