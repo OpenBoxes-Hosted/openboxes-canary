@@ -67,7 +67,7 @@ class DocumentControllerTemplateTypeGuardSpec extends Specification
         document.documentType.documentCode == DocumentCode.SHIPPING_DOCUMENT
 
         where:
-        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE]
+        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE, DocumentCode.DATA_EXPORT]
     }
 
     void "saveDocument should still allow an ordinary document type"() {
@@ -116,7 +116,7 @@ class DocumentControllerTemplateTypeGuardSpec extends Specification
         template.errors.allErrors.any { it.codes.toList().contains('documentType') }
 
         where:
-        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE]
+        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE, DocumentCode.DATA_EXPORT]
     }
 
     /**
@@ -181,7 +181,7 @@ class DocumentControllerTemplateTypeGuardSpec extends Specification
         template.errors.allErrors.any { it.codes.toList().contains('documentType') }
 
         where:
-        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE]
+        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE, DocumentCode.DATA_EXPORT]
     }
 
     void "an upload to an ordinary document with no typeId is still allowed"() {
@@ -203,6 +203,6 @@ class DocumentControllerTemplateTypeGuardSpec extends Specification
         controller.rejectTemplateDocumentType(document, templateType)
 
         where:
-        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE]
+        documentCode << [DocumentCode.GSP_TEMPLATE, DocumentCode.PURCHASE_ORDER_TEMPLATE, DocumentCode.DATA_EXPORT]
     }
 }
