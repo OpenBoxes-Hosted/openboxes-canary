@@ -60,7 +60,7 @@ class LoggingInterceptor {
             MDC.remove('locale')
             MDC.remove('ipAddress')
             MDC.remove('requestUri')
-            MDC.remove('requestUri')
+            MDC.remove('requestUrl')
             MDC.remove('serverUrl')
             MDC.remove('queryString')
         } catch (Exception e) {

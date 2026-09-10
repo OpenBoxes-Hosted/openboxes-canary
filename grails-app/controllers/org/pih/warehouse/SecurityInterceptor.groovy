@@ -28,9 +28,14 @@ class SecurityInterceptor {
     }
 
     void afterView() {
-        // Clear out current user after rendering the view
-        authService.currentUser = null
-        authService.currentLocation = null
+        // Clear out the current user and location once the request is done with them. Request
+        // threads are pooled, so these have to be removed, not nulled - and this must not throw:
+        // Grails runs every matched interceptor's afterView() in a single unguarded loop.
+        try {
+            AuthService.clear()
+        } catch (Exception e) {
+            log.error("Unable to clear the current user and location from the request thread", e)
+        }
     }
     boolean before() {
 
