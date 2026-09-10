@@ -134,6 +134,7 @@ class GenericApiServiceSpec extends Specification implements ServiceUnitTest<Gen
         "getObject"             | { GenericApiService it -> it.getObject("user", "1") }
         "createObject"          | { GenericApiService it -> it.createObject("user", new JSONObject()) }
         "createObjects"         | { GenericApiService it -> it.createObjects("user", oneElementArray()) }
+        "createObjects (empty)" | { GenericApiService it -> it.createObjects("user", new JSONArray()) }
         "updateObject"          | { GenericApiService it -> it.updateObject("user", "1", new JSONObject()) }
         "deleteObject"          | { GenericApiService it -> it.deleteObject("user", "1") }
         "searchObjects"         | { GenericApiService it -> it.searchObjects("user", new JSONObject(), [:]) }

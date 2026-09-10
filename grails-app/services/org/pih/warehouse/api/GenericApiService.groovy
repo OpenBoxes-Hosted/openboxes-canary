@@ -72,7 +72,7 @@ class GenericApiService {
     SessionFactory sessionFactory
     GrailsApplication grailsApplication
 
-    GrailsDomainClass getDomainClassByName(String className) {
+    protected GrailsDomainClass getDomainClassByName(String className) {
         GrailsDomainClass grailsDomainClass = grailsApplication.domainClasses.find {
             it.clazz.simpleName == className
         }
@@ -144,6 +144,8 @@ class GenericApiService {
 
     Object createObjects(String resourceName, JSONArray jsonArray) {
         log.debug "Create objects " + jsonArray.class + ": " + jsonArray
+        // Checked here as well as in createObject, so that an empty array is refused too.
+        getDomainClass(resourceName)
         def domainObjects = []
         jsonArray.each { JSONObject jsonObject ->
             domainObjects << createObject(resourceName, jsonObject)
