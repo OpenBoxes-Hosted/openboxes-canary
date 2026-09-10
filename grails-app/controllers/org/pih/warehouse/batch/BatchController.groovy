@@ -117,7 +117,14 @@ class BatchController {
                 if (!uploadFile?.empty) {
                     try {
                         localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                        uploadFile.transferTo(localFile)
+                        try {
+                            uploadFile.transferTo(localFile)
+                        } catch (Exception e) {
+                            // The file was just created but never filled in; without this it is
+                            // orphaned exactly like the pre-fix bug this task exists to close.
+                            uploadService.deleteLocalFile(localFile)
+                            throw e
+                        }
                         // Two uploads in one session race here: without the lock, both can read the
                         // same previous file, both delete it, and the loser's own file is orphaned
                         // with nothing pointing at it. A second upload replaces the first, so the

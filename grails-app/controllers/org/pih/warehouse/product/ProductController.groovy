@@ -639,7 +639,14 @@ class ProductController {
 
                     // Upload file
                     localFile = uploadService.createLocalFile(uploadFile.originalFilename)
-                    uploadFile?.transferTo(localFile)
+                    try {
+                        uploadFile?.transferTo(localFile)
+                    } catch (Exception e) {
+                        // The file was just created but never filled in; without this it is orphaned
+                        // exactly like the pre-fix bug this task exists to close.
+                        uploadService.deleteLocalFile(localFile)
+                        throw e
+                    }
                     // A second upload in this session replaces the first; delete and replace under
                     // one lock so two concurrent Phase-1 uploads cannot orphan a file between them.
                     synchronized (session) {
