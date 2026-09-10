@@ -27,6 +27,11 @@ import org.pih.warehouse.core.User
 class RequestThreadStateFilterSpec extends Specification
         implements ServiceUnitTest<AuthService>, DataTest {
 
+    /** Exactly the keys LoggingInterceptor.before() puts into the MDC, in the order it puts them. */
+    static final List<String> MDC_KEYS_THE_LOGGING_INTERCEPTOR_SETS = [
+            'sessionId', 'username', 'location', 'locale', 'ipAddress',
+            'requestUri', 'requestUrl', 'queryString', 'serverUrl'].asImmutable()
+
     void setupSpec() {
         mockDomain(Location)
         mockDomain(User)
@@ -93,5 +98,54 @@ class RequestThreadStateFilterSpec extends Specification
 
         and: 'and the thread was cleaned up on the way out'
         AuthService.getCurrentUser() == null
+    }
+
+    void "the filter leaves no MDC state at all when the interceptor chain halts"() {
+        given: 'a chain that populates the MDC exactly as LoggingInterceptor.before() does, plus a'
+        and: 'key put there by something else entirely, and is then never unwound'
+        FilterChain haltedChain = new FilterChain() {
+            @Override
+            void doFilter(ServletRequest servletRequest, ServletResponse servletResponse) {
+                MDC_KEYS_THE_LOGGING_INTERCEPTOR_SETS.each { MDC.put(it, "value for ${it}".toString()) }
+                MDC.put('someOtherKey', 'put here by something that is not the logging interceptor')
+            }
+        }
+
+        when:
+        new RequestThreadStateFilter().doFilter(
+                new MockHttpServletRequest(), new MockHttpServletResponse(), haltedChain)
+
+        then: 'every key the interceptor would have removed on the happy path is gone anyway'
+        MDC_KEYS_THE_LOGGING_INTERCEPTOR_SETS.every { MDC.get(it) == null }
+
+        and: 'so is request-scoped state this application did not put there itself'
+        MDC.get('someOtherKey') == null
+
+        and: 'the thread carries no logging context at all into the next request'
+        !MDC.copyOfContextMap
+    }
+
+    void "the filter leaves no MDC state at all when the request itself blows up"() {
+        given:
+        FilterChain failingChain = new FilterChain() {
+            @Override
+            void doFilter(ServletRequest servletRequest, ServletResponse servletResponse) {
+                MDC_KEYS_THE_LOGGING_INTERCEPTOR_SETS.each { MDC.put(it, "value for ${it}".toString()) }
+                MDC.put('someOtherKey', 'put here by something that is not the logging interceptor')
+                throw new IllegalStateException('the request died here')
+            }
+        }
+
+        when:
+        new RequestThreadStateFilter().doFilter(
+                new MockHttpServletRequest(), new MockHttpServletResponse(), failingChain)
+
+        then: 'the failure still reaches the container'
+        thrown(IllegalStateException)
+
+        and: 'and the thread carries no logging context out of the request'
+        MDC_KEYS_THE_LOGGING_INTERCEPTOR_SETS.every { MDC.get(it) == null }
+        MDC.get('someOtherKey') == null
+        !MDC.copyOfContextMap
     }
 }

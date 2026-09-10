@@ -41,8 +41,10 @@ class RequestThreadStateFilter extends OncePerRequestFilter {
             } catch (Exception e) {
                 logger.error("Unable to clear the current user and location from the request thread", e)
             }
-            MDC.remove('requestUrl')
-            MDC.remove('requestUri')
+            // The whole map, not a list of keys: on a refused request none of the nine keys
+            // LoggingInterceptor.before() sets is ever removed, and request-scoped keys put there
+            // by anything else leak the same way. Nothing outlives a request in the MDC.
+            MDC.clear()
         }
     }
 }
